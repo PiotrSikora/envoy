@@ -41,6 +41,9 @@ ContextImpl::ContextImpl(ContextManagerImpl& parent, Stats::Scope& scope, Contex
   rc = SSL_CTX_set_max_proto_version(ctx_.get(), config.maxProtocolVersion());
   RELEASE_ASSERT(rc == 1);
 
+  SSL_CTX_set_early_data_enabled(ctx_.get(), 1);
+  SSL_CTX_set_tls13_variant(ctx_.get(), tls13_draft22);
+
   if (!SSL_CTX_set_strict_cipher_list(ctx_.get(), config.cipherSuites().c_str())) {
     throw EnvoyException(
         fmt::format("Failed to initialize cipher suites {}", config.cipherSuites()));

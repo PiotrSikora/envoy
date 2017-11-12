@@ -13,6 +13,7 @@ COMMIT=ae9f0616c58bddcbe7a6d80d29d796bee9aaff2e  # chromium-62.0.3202.62
 git clone https://boringssl.googlesource.com/boringssl
 cd boringssl
 git reset --hard "$COMMIT"
+git fetch https://boringssl.googlesource.com/boringssl refs/changes/44/22944/2 && git checkout FETCH_HEAD
 cmake -DCMAKE_CXX_FLAGS:STRING="${CXXFLAGS} ${CPPFLAGS}" \
   -DCMAKE_C_FLAGS:STRING="${CFLAGS} ${CPPFLAGS}" \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo .
