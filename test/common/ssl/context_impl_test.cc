@@ -175,7 +175,8 @@ public:
     Runtime::MockLoader runtime;
     ContextManagerImpl manager(runtime);
     Stats::IsolatedStoreImpl store;
-    ServerContextPtr server_ctx(manager.createSslServerContext("", {}, store, cfg, true));
+    ServerContextPtr server_ctx(
+        manager.createSslServerContext(store, cfg, std::vector<std::string>{}));
   }
 
   static void loadConfigV2(envoy::api::v2::auth::DownstreamTlsContext& cfg) {

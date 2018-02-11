@@ -31,10 +31,9 @@ class DownstreamSslSocketFactory : public DownstreamTransportSocketConfigFactory
                                    public SslSocketConfigFactory {
 public:
   Network::TransportSocketFactoryPtr
-  createTransportSocketFactory(const std::string& listener_name,
-                               const std::vector<std::string>& server_names,
-                               bool skip_context_update, const Protobuf::Message& config,
-                               TransportSocketFactoryContext& context) override;
+  createTransportSocketFactory(const Protobuf::Message& config,
+                               TransportSocketFactoryContext& context,
+                               const std::vector<std::string>& server_names) override;
   ProtobufTypes::MessagePtr createEmptyConfigProto() override;
 };
 

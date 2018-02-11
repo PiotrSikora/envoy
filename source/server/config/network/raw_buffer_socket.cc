@@ -15,8 +15,7 @@ UpstreamRawBufferSocketFactory::createTransportSocketFactory(const Protobuf::Mes
 }
 
 Network::TransportSocketFactoryPtr DownstreamRawBufferSocketFactory::createTransportSocketFactory(
-    const std::string&, const std::vector<std::string>&, bool, const Protobuf::Message&,
-    TransportSocketFactoryContext&) {
+    const Protobuf::Message&, TransportSocketFactoryContext&, const std::vector<std::string>&) {
   return std::make_unique<Network::RawBufferSocketFactory>();
 }
 
