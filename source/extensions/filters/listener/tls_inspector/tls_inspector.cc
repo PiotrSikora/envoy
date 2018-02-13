@@ -307,7 +307,7 @@ void Filter::processTlsClientHello(CBS* client_hello) {
   }
 
   Network::ConnectionSocket& socket = cb_->socket();
-  socket.setDetectedTransportProtocol(Envoy::Config::TransportSocketNames::get().SSL);
+  socket.setDetectedTransportProtocol(Envoy::Config::TransportSocketNames::get().TLS);
 
   if (!server_name.empty()) {
     ENVOY_LOG(debug, "tls inspector: found server name: {}", server_name);

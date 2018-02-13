@@ -15,7 +15,7 @@ namespace Configuration {
 class SslSocketConfigFactory : public virtual TransportSocketConfigFactory {
 public:
   virtual ~SslSocketConfigFactory() {}
-  std::string name() const override { return Config::TransportSocketNames::get().SSL; }
+  std::string name() const override { return Config::TransportSocketNames::get().TLS; }
 };
 
 class UpstreamSslSocketFactory : public UpstreamTransportSocketConfigFactory,

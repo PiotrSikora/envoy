@@ -182,7 +182,7 @@ ClusterInfoImpl::ClusterInfoImpl(const envoy::api::v2::Cluster& config,
   auto transport_socket = config.transport_socket();
   if (!config.has_transport_socket()) {
     if (config.has_tls_context()) {
-      transport_socket.set_name(Config::TransportSocketNames::get().SSL);
+      transport_socket.set_name(Config::TransportSocketNames::get().TLS);
       MessageUtil::jsonConvert(config.tls_context(), *transport_socket.mutable_config());
     } else {
       transport_socket.set_name(Config::TransportSocketNames::get().RAW_BUFFER);
