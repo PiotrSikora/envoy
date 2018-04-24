@@ -141,8 +141,8 @@ TEST_F(HttpConnectionManagerConfigTest, SingleDateProvider) {
   HttpConnectionManagerFilterConfigFactory factory;
   // We expect a single slot allocation vs. multiple.
   EXPECT_CALL(context_.thread_local_, allocateSlot());
-  NetworkFilterFactoryCb cb1 = factory.createFilterFactory(*json_config, context_);
-  NetworkFilterFactoryCb cb2 = factory.createFilterFactory(*json_config, context_);
+  Network::NetworkFilterFactoryCb cb1 = factory.createFilterFactory(*json_config, context_);
+  Network::NetworkFilterFactoryCb cb2 = factory.createFilterFactory(*json_config, context_);
 }
 
 TEST(HttpConnectionManagerConfigUtilityTest, DetermineNextProtocol) {

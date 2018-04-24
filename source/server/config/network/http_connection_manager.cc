@@ -35,7 +35,7 @@ const std::string HttpConnectionManagerConfig::DEFAULT_SERVER_STRING = "envoy";
 SINGLETON_MANAGER_REGISTRATION(date_provider);
 SINGLETON_MANAGER_REGISTRATION(route_config_provider_manager);
 
-NetworkFilterFactoryCb HttpConnectionManagerFilterConfigFactory::createFilter(
+Network::NetworkFilterFactoryCb HttpConnectionManagerFilterConfigFactory::createFilter(
     const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
         proto_config,
     FactoryContext& context) {
@@ -68,7 +68,7 @@ NetworkFilterFactoryCb HttpConnectionManagerFilterConfigFactory::createFilter(
   };
 }
 
-NetworkFilterFactoryCb
+Network::NetworkFilterFactoryCb
 HttpConnectionManagerFilterConfigFactory::createFilterFactory(const Json::Object& json_config,
                                                               FactoryContext& context) {
   envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager proto_config;
@@ -76,7 +76,8 @@ HttpConnectionManagerFilterConfigFactory::createFilterFactory(const Json::Object
   return createFilter(proto_config, context);
 }
 
-NetworkFilterFactoryCb HttpConnectionManagerFilterConfigFactory::createFilterFactoryFromProto(
+Network::NetworkFilterFactoryCb
+HttpConnectionManagerFilterConfigFactory::createFilterFactoryFromProto(
     const Protobuf::Message& proto_config, FactoryContext& context) {
   return createFilter(
       MessageUtil::downcastAndValidate<const envoy::config::filter::network::

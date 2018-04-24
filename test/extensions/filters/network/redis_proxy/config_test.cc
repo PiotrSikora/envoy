@@ -28,8 +28,7 @@ TEST(RedisProxyFilterConfigFactoryTest, RedisProxyCorrectJson) {
   Json::ObjectSharedPtr json_config = Json::Factory::loadFromString(json_string);
   NiceMock<Server::Configuration::MockFactoryContext> context;
   RedisProxyFilterConfigFactory factory;
-  Server::Configuration::NetworkFilterFactoryCb cb =
-      factory.createFilterFactory(*json_config, context);
+  Network::NetworkFilterFactoryCb cb = factory.createFilterFactory(*json_config, context);
   Network::MockConnection connection;
   EXPECT_CALL(connection, addReadFilter(_));
   cb(connection);
@@ -51,8 +50,7 @@ TEST(RedisProxyFilterConfigFactoryTest, RedisProxyCorrectProto) {
   Config::FilterJson::translateRedisProxy(*json_config, proto_config);
   NiceMock<Server::Configuration::MockFactoryContext> context;
   RedisProxyFilterConfigFactory factory;
-  Server::Configuration::NetworkFilterFactoryCb cb =
-      factory.createFilterFactoryFromProto(proto_config, context);
+  Network::NetworkFilterFactoryCb cb = factory.createFilterFactoryFromProto(proto_config, context);
   Network::MockConnection connection;
   EXPECT_CALL(connection, addReadFilter(_));
   cb(connection);
@@ -78,8 +76,7 @@ TEST(RedisProxyFilterConfigFactoryTest, RedisProxyEmptyProto) {
 
   Config::FilterJson::translateRedisProxy(*json_config, proto_config);
 
-  Server::Configuration::NetworkFilterFactoryCb cb =
-      factory.createFilterFactoryFromProto(proto_config, context);
+  Network::NetworkFilterFactoryCb cb = factory.createFilterFactoryFromProto(proto_config, context);
   Network::MockConnection connection;
   EXPECT_CALL(connection, addReadFilter(_));
   cb(connection);
