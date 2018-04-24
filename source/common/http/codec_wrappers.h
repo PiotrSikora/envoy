@@ -2,6 +2,7 @@
 
 #include "envoy/http/codec.h"
 
+namespace Envoy {
 namespace Http {
 
 /**
@@ -10,6 +11,10 @@ namespace Http {
 class StreamDecoderWrapper : public StreamDecoder {
 public:
   // StreamDecoder
+  void decode100ContinueHeaders(HeaderMapPtr&& headers) override {
+    inner_.decode100ContinueHeaders(std::move(headers));
+  }
+
   void decodeHeaders(HeaderMapPtr&& headers, bool end_stream) override {
     if (end_stream) {
       onPreDecodeComplete();
@@ -22,7 +27,7 @@ public:
     }
   }
 
-  void decodeData(const Buffer::Instance& data, bool end_stream) override {
+  void decodeData(Buffer::Instance& data, bool end_stream) override {
     if (end_stream) {
       onPreDecodeComplete();
     }
@@ -59,6 +64,10 @@ protected:
 class StreamEncoderWrapper : public StreamEncoder {
 public:
   // StreamEncoder
+  void encode100ContinueHeaders(const HeaderMap& headers) override {
+    inner_.encode100ContinueHeaders(headers);
+  }
+
   void encodeHeaders(const HeaderMap& headers, bool end_stream) override {
     inner_.encodeHeaders(headers, end_stream);
     if (end_stream) {
@@ -66,7 +75,7 @@ public:
     }
   }
 
-  void encodeData(const Buffer::Instance& data, bool end_stream) override {
+  void encodeData(Buffer::Instance& data, bool end_stream) override {
     inner_.encodeData(data, end_stream);
     if (end_stream) {
       onEncodeComplete();
@@ -92,4 +101,5 @@ protected:
   StreamEncoder& inner_;
 };
 
-} // Http
+} // namespace Http
+} // namespace Envoy

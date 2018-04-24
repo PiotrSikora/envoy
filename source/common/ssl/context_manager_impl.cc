@@ -1,39 +1,57 @@
-#include "context_manager_impl.h"
+#include "common/ssl/context_manager_impl.h"
 
+#include <functional>
+#include <shared_mutex>
+
+#include "common/common/assert.h"
+#include "common/ssl/context_impl.h"
+
+namespace Envoy {
 namespace Ssl {
 
-Ssl::ClientContext& ContextManagerImpl::createSslClientContext(const std::string& name,
-                                                               Stats::Store& stats,
-                                                               ContextConfig& config) {
+ContextManagerImpl::~ContextManagerImpl() { ASSERT(contexts_.empty()); }
 
-  Ssl::ClientContext* context = new ClientContextImpl(name, stats, config);
-  contexts_.emplace_back(context);
-  return *context;
+void ContextManagerImpl::releaseContext(Context* context) {
+  std::unique_lock<std::shared_timed_mutex> lock(contexts_lock_);
+
+  // context may not be found, in the case that a subclass of Context throws
+  // in it's constructor. In that case the context did not get added, but
+  // the destructor of Context will run and call releaseContext().
+  contexts_.remove(context);
 }
 
-Ssl::ServerContext& ContextManagerImpl::createSslServerContext(const std::string& name,
-                                                               Stats::Store& stats,
-                                                               ContextConfig& config) {
-  Ssl::ServerContext* context = new ServerContextImpl(name, stats, config, runtime_);
-  contexts_.emplace_back(context);
-  return *context;
+ClientContextPtr ContextManagerImpl::createSslClientContext(Stats::Scope& scope,
+                                                            const ClientContextConfig& config) {
+  ClientContextPtr context(new ClientContextImpl(*this, scope, config));
+  std::unique_lock<std::shared_timed_mutex> lock(contexts_lock_);
+  contexts_.emplace_back(context.get());
+  return context;
 }
 
-size_t ContextManagerImpl::daysUntilFirstCertExpires() {
+ServerContextPtr
+ContextManagerImpl::createSslServerContext(Stats::Scope& scope, const ServerContextConfig& config,
+                                           const std::vector<std::string>& server_names) {
+  ServerContextPtr context(new ServerContextImpl(*this, scope, config, server_names, runtime_));
+  std::unique_lock<std::shared_timed_mutex> lock(contexts_lock_);
+  contexts_.emplace_back(context.get());
+  return context;
+}
+
+size_t ContextManagerImpl::daysUntilFirstCertExpires() const {
+  std::shared_lock<std::shared_timed_mutex> lock(contexts_lock_);
   size_t ret = std::numeric_limits<int>::max();
-  for (std::unique_ptr<Context>& context : contexts_) {
+  for (Context* context : contexts_) {
     ret = std::min<size_t>(context->daysUntilFirstCertExpires(), ret);
   }
   return ret;
 }
 
-std::vector<std::reference_wrapper<Context>> ContextManagerImpl::getContexts() {
-  std::vector<std::reference_wrapper<Context>> return_contexts;
-  for (std::unique_ptr<Context>& context : contexts_) {
-    return_contexts.push_back(*context);
+void ContextManagerImpl::iterateContexts(std::function<void(const Context&)> callback) {
+  std::shared_lock<std::shared_timed_mutex> lock(contexts_lock_);
+  for (Context* context : contexts_) {
+    callback(*context);
   }
-
-  return return_contexts;
 }
 
-} // Ssl
+} // namespace Ssl
+} // namespace Envoy

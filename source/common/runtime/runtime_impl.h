@@ -1,16 +1,25 @@
 #pragma once
 
+#include <dirent.h>
+
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <unordered_map>
+
+#include "envoy/api/os_sys_calls.h"
 #include "envoy/common/exception.h"
-#include "envoy/common/optional.h"
 #include "envoy/runtime/runtime.h"
 #include "envoy/stats/stats_macros.h"
 #include "envoy/thread_local/thread_local.h"
 
 #include "common/common/empty_string.h"
 #include "common/common/logger.h"
+#include "common/common/thread.h"
 
-#include <dirent.h>
+#include "spdlog/spdlog.h"
 
+namespace Envoy {
 namespace Runtime {
 
 /**
@@ -20,16 +29,10 @@ namespace Runtime {
 class RandomGeneratorImpl : public RandomGenerator {
 public:
   // Runtime::RandomGenerator
-  uint64_t random() override { return threadLocalGenerator()(); }
+  uint64_t random() override;
   std::string uuid() override;
 
   static const size_t UUID_LENGTH;
-
-private:
-  static std::ranlux48& threadLocalGenerator() {
-    static thread_local std::ranlux48 generator(time(nullptr));
-    return generator;
-  }
 };
 
 /**
@@ -59,17 +62,24 @@ class SnapshotImpl : public Snapshot,
                      Logger::Loggable<Logger::Id::runtime> {
 public:
   SnapshotImpl(const std::string& root_path, const std::string& override_path, RuntimeStats& stats,
-               RandomGenerator& generator);
+               RandomGenerator& generator, Api::OsSysCalls& os_sys_calls);
 
   // Runtime::Snapshot
   bool featureEnabled(const std::string& key, uint64_t default_value, uint64_t random_value,
-                      uint16_t num_buckets) const override {
-    return random_value % static_cast<uint64_t>(num_buckets) <
-           std::min(getInteger(key, default_value), static_cast<uint64_t>(num_buckets));
+                      uint64_t num_buckets) const override {
+    return random_value % num_buckets < std::min(getInteger(key, default_value), num_buckets);
   }
 
   bool featureEnabled(const std::string& key, uint64_t default_value) const override {
-    return featureEnabled(key, default_value, generator_.random());
+    // Avoid PNRG if we know we don't need it.
+    uint64_t cutoff = std::min(getInteger(key, default_value), static_cast<uint64_t>(100));
+    if (cutoff == 0) {
+      return false;
+    } else if (cutoff == 100) {
+      return true;
+    } else {
+      return generator_.random() % 100 < cutoff;
+    }
   }
 
   bool featureEnabled(const std::string& key, uint64_t default_value,
@@ -79,9 +89,7 @@ public:
 
   const std::string& get(const std::string& key) const override;
   uint64_t getInteger(const std::string&, uint64_t default_value) const override;
-
-  // ThreadLocal::ThreadLocalObject
-  void shutdown() override {}
+  const std::unordered_map<std::string, const Snapshot::Entry>& getAll() const override;
 
 private:
   struct Directory {
@@ -97,15 +105,11 @@ private:
     DIR* dir_;
   };
 
-  struct Entry {
-    std::string string_value_;
-    Optional<uint64_t> uint_value_;
-  };
-
   void walkDirectory(const std::string& path, const std::string& prefix);
 
-  std::unordered_map<std::string, Entry> values_;
+  std::unordered_map<std::string, const Entry> values_;
   RandomGenerator& generator_;
+  Api::OsSysCalls& os_sys_calls_;
 };
 
 /**
@@ -116,9 +120,10 @@ private:
  */
 class LoaderImpl : public Loader {
 public:
-  LoaderImpl(Event::Dispatcher& dispatcher, ThreadLocal::Instance& tls,
+  LoaderImpl(Event::Dispatcher& dispatcher, ThreadLocal::SlotAllocator& tls,
              const std::string& root_symlink_path, const std::string& subdir,
-             const std::string& override_dir, Stats::Store& store, RandomGenerator& generator);
+             const std::string& override_dir, Stats::Store& store, RandomGenerator& generator,
+             Api::OsSysCallsPtr os_sys_calls);
 
   // Runtime::Loader
   Snapshot& snapshot() override;
@@ -128,13 +133,13 @@ private:
   void onSymlinkSwap();
 
   Filesystem::WatcherPtr watcher_;
-  ThreadLocal::Instance& tls_;
-  uint32_t tls_slot_;
+  ThreadLocal::SlotPtr tls_;
   RandomGenerator& generator_;
   std::string root_path_;
   std::string override_path_;
   std::shared_ptr<SnapshotImpl> current_snapshot_;
   RuntimeStats stats_;
+  Api::OsSysCallsPtr os_sys_calls_;
 };
 
 /**
@@ -142,7 +147,7 @@ private:
  */
 class NullLoaderImpl : public Loader {
 public:
-  NullLoaderImpl(RandomGenerator& generator) : generator_(generator), snapshot_(generator) {}
+  NullLoaderImpl(RandomGenerator& generator) : snapshot_(generator) {}
 
   // Runtime::Loader
   Snapshot& snapshot() override { return snapshot_; }
@@ -153,9 +158,8 @@ private:
 
     // Runtime::Snapshot
     bool featureEnabled(const std::string&, uint64_t default_value, uint64_t random_value,
-                        uint16_t num_buckets) const override {
-      return random_value % static_cast<uint64_t>(num_buckets) <
-             std::min(default_value, static_cast<uint64_t>(num_buckets));
+                        uint64_t num_buckets) const override {
+      return random_value % num_buckets < std::min(default_value, num_buckets);
     }
 
     bool featureEnabled(const std::string& key, uint64_t default_value) const override {
@@ -179,11 +183,16 @@ private:
       return default_value;
     }
 
+    const std::unordered_map<std::string, const Snapshot::Entry>& getAll() const override {
+      return values_;
+    }
+
     RandomGenerator& generator_;
+    std::unordered_map<std::string, const Snapshot::Entry> values_;
   };
 
-  RandomGenerator& generator_;
   NullSnapshotImpl snapshot_;
 };
 
-} // Runtime
+} // namespace Runtime
+} // namespace Envoy

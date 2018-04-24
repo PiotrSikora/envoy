@@ -1,48 +1,31 @@
-#include "hot_restart.h"
+#include "exe/main_common.h"
 
-#include "common/event/libevent.h"
-#include "common/ssl/openssl.h"
-#include "server/drain_manager_impl.h"
-#include "server/options_impl.h"
-#include "server/server.h"
-#include "server/test_hooks.h"
+// NOLINT(namespace-envoy)
 
-namespace Server {
-
-class ProdComponentFactory : public ComponentFactory {
-public:
-  // Server::DrainManagerFactory
-  DrainManagerPtr createDrainManager(Instance& server) override {
-    return DrainManagerPtr{new DrainManagerImpl(server)};
-  }
-
-  Runtime::LoaderPtr createRuntime(Server::Instance& server,
-                                   Server::Configuration::Initial& config) override {
-    return Server::InstanceUtil::createRuntime(server, config);
-  }
-};
-
-} // Server
-
+/**
+ * Basic Site-Specific main()
+ *
+ * This should be used to do setup tasks specific to a particular site's
+ * deployment such as initializing signal handling. It calls main_common
+ * after setting up command line options.
+ */
 int main(int argc, char** argv) {
-  Event::Libevent::Global::initialize();
-  Ssl::OpenSsl::initialize();
-  OptionsImpl options(argc, argv, Server::SharedMemory::version(), spdlog::level::notice);
+  std::unique_ptr<Envoy::MainCommon> main_common;
 
-  std::unique_ptr<Server::HotRestartImpl> restarter;
+  // Initialize the server's main context under a try/catch loop and simply return EXIT_FAILURE
+  // as needed. Whatever code in the initialization path that fails is expected to log an error
+  // message so the user can diagnose.
   try {
-    restarter.reset(new Server::HotRestartImpl(options));
-  } catch (EnvoyException& e) {
-    std::cerr << "unable to initialize hot restart: " << e.what() << std::endl;
-    return 1;
+    main_common = std::make_unique<Envoy::MainCommon>(argc, argv);
+  } catch (const Envoy::NoServingException& e) {
+    return EXIT_SUCCESS;
+  } catch (const Envoy::MalformedArgvException& e) {
+    return EXIT_FAILURE;
+  } catch (const Envoy::EnvoyException& e) {
+    return EXIT_FAILURE;
   }
 
-  Logger::Registry::initialize(options.logLevel(), restarter->logLock());
-  DefaultTestHooks default_test_hooks;
-  Stats::ThreadLocalStoreImpl stats_store(restarter->statLock(), *restarter);
-  Server::ProdComponentFactory component_factory;
-  Server::InstanceImpl server(options, default_test_hooks, *restarter, stats_store,
-                              restarter->accessLogLock(), component_factory);
-  server.run();
-  return 0;
+  // Run the server listener loop outside try/catch blocks, so that unexpected exceptions
+  // show up as a core-dumps for easier diagnostis.
+  return main_common->run() ? EXIT_SUCCESS : EXIT_FAILURE;
 }

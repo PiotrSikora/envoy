@@ -1,56 +1,134 @@
 #pragma once
 
+#include <unistd.h>
+
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "envoy/network/connection.h"
 #include "envoy/network/listen_socket.h"
 
-#include "common/ssl/context_impl.h"
+#include "common/common/assert.h"
 
+namespace Envoy {
 namespace Network {
 
-class ListenSocketImpl : public ListenSocket {
+class SocketImpl : public virtual Socket {
 public:
-  ListenSocketImpl() {}
-  ListenSocketImpl(int fd) : fd_(fd) {}
-  virtual ~ListenSocketImpl() { close(); }
+  ~SocketImpl() { close(); }
 
-  // Network::ListenSocket
-  int fd() { return fd_; }
-
-  void close() {
+  // Network::Socket
+  const Address::InstanceConstSharedPtr& localAddress() const override { return local_address_; }
+  int fd() const override { return fd_; }
+  void close() override {
     if (fd_ != -1) {
       ::close(fd_);
       fd_ = -1;
     }
   }
+  void addOption(const OptionConstSharedPtr& option) override {
+    if (!options_) {
+      options_ = std::make_shared<std::vector<OptionConstSharedPtr>>();
+    }
+    options_->emplace_back(std::move(option));
+  }
+  const OptionsSharedPtr& options() const override { return options_; }
 
 protected:
+  SocketImpl(int fd, const Address::InstanceConstSharedPtr& local_address)
+      : fd_(fd), local_address_(local_address) {}
+
   int fd_;
+  Address::InstanceConstSharedPtr local_address_;
+  OptionsSharedPtr options_;
+};
+
+class ListenSocketImpl : public SocketImpl {
+protected:
+  ListenSocketImpl(int fd, const Address::InstanceConstSharedPtr& local_address)
+      : SocketImpl(fd, local_address) {}
+
+  void doBind();
+  void setListenSocketOptions(const Network::Socket::OptionsSharedPtr& options);
 };
 
 /**
- * Wraps a bound unix socket.
+ * Wraps a unix socket.
  */
 class TcpListenSocket : public ListenSocketImpl {
 public:
-  TcpListenSocket(uint32_t port);
-  TcpListenSocket(int fd, uint32_t port) : ListenSocketImpl(fd), port_(port) {}
-
-  uint32_t port() { return port_; }
-
-  // Network::ListenSocket
-  const std::string name() { return std::to_string(port_); }
-
-private:
-  uint32_t port_;
+  TcpListenSocket(const Address::InstanceConstSharedPtr& address,
+                  const Network::Socket::OptionsSharedPtr& options, bool bind_to_port);
+  TcpListenSocket(int fd, const Address::InstanceConstSharedPtr& address,
+                  const Network::Socket::OptionsSharedPtr& options);
 };
 
 typedef std::unique_ptr<TcpListenSocket> TcpListenSocketPtr;
 
 class UdsListenSocket : public ListenSocketImpl {
 public:
-  UdsListenSocket(const std::string& uds_path);
-
-  // Network::ListenSocket
-  const std::string name() { return "uds"; }
+  UdsListenSocket(const Address::InstanceConstSharedPtr& address);
+  UdsListenSocket(int fd, const Address::InstanceConstSharedPtr& address);
 };
 
-} // Network
+class ConnectionSocketImpl : public SocketImpl, public ConnectionSocket {
+public:
+  ConnectionSocketImpl(int fd, const Address::InstanceConstSharedPtr& local_address,
+                       const Address::InstanceConstSharedPtr& remote_address)
+      : SocketImpl(fd, local_address), remote_address_(remote_address) {}
+
+  // Network::ConnectionSocket
+  const Address::InstanceConstSharedPtr& remoteAddress() const override { return remote_address_; }
+  void setLocalAddress(const Address::InstanceConstSharedPtr& local_address,
+                       bool restored) override {
+    ASSERT(!restored || *local_address != *local_address_);
+    local_address_ = local_address;
+    local_address_restored_ = restored;
+  }
+  void setRemoteAddress(const Address::InstanceConstSharedPtr& remote_address) override {
+    remote_address_ = remote_address;
+  }
+  bool localAddressRestored() const override { return local_address_restored_; }
+
+  void setDetectedTransportProtocol(const std::string& protocol) override {
+    transport_protocol_ = protocol;
+  }
+  const std::string& detectedTransportProtocol() const override { return transport_protocol_; }
+
+  void setRequestedServerName(const std::string& server_name) override {
+    server_name_ = server_name;
+  }
+  const std::string& requestedServerName() const override { return server_name_; }
+
+  void setRequestedNextProtocol(const std::vector<std::string>& protocols) override {
+    next_protocols_ = protocols;
+  }
+  const std::vector<std::string>& requestedNextProtocol() const override { return next_protocols_; }
+
+protected:
+  Address::InstanceConstSharedPtr remote_address_;
+  bool local_address_restored_{false};
+  std::string transport_protocol_;
+  std::string server_name_;
+  std::vector<std::string> next_protocols_;
+};
+
+// ConnectionSocket used with server connections.
+class AcceptedSocketImpl : public ConnectionSocketImpl {
+public:
+  AcceptedSocketImpl(int fd, const Address::InstanceConstSharedPtr& local_address,
+                     const Address::InstanceConstSharedPtr& remote_address)
+      : ConnectionSocketImpl(fd, local_address, remote_address) {}
+};
+
+// ConnectionSocket used with client connections.
+class ClientSocketImpl : public ConnectionSocketImpl {
+public:
+  ClientSocketImpl(const Address::InstanceConstSharedPtr& remote_address)
+      : ConnectionSocketImpl(remote_address->socket(Address::SocketType::Stream), nullptr,
+                             remote_address) {}
+};
+
+} // namespace Network
+} // namespace Envoy

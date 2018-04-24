@@ -1,8 +1,15 @@
-#include "mocks.h"
+#include "test/mocks/filesystem/mocks.h"
 
+#include <string>
+
+namespace Envoy {
 namespace Filesystem {
+
+MockFile::MockFile() {}
+MockFile::~MockFile() {}
 
 MockWatcher::MockWatcher() {}
 MockWatcher::~MockWatcher() {}
 
-} // Filesystem
+} // namespace Filesystem
+} // namespace Envoy

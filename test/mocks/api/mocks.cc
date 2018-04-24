@@ -1,12 +1,19 @@
 #include "mocks.h"
 
-#include "envoy/thread/thread.h"
+#include "common/common/assert.h"
 
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
+
+using testing::Return;
 using testing::_;
-using testing::NiceMock;
-using testing::ReturnNew;
 
-namespace Filesystem {
+namespace Envoy {
+namespace Api {
+
+MockApi::MockApi() { ON_CALL(*this, createFile(_, _, _, _)).WillByDefault(Return(file_)); }
+
+MockApi::~MockApi() {}
 
 MockOsSysCalls::MockOsSysCalls() { num_writes_ = num_open_ = 0; }
 
@@ -32,15 +39,34 @@ ssize_t MockOsSysCalls::write(int fd, const void* buffer, size_t num_bytes) {
   return result;
 }
 
-} // Filesystem
+int MockOsSysCalls::setsockopt(int sockfd, int level, int optname, const void* optval,
+                               socklen_t optlen) {
+  ASSERT(optlen == sizeof(int));
 
-namespace Api {
+  // Allow mocking system call failure.
+  if (setsockopt_(sockfd, level, optname, optval, optlen) != 0) {
+    return -1;
+  }
 
-MockApi::MockApi() {
-  ON_CALL(*this, createFile_(_, _, _, _))
-      .WillByDefault(ReturnNew<NiceMock<Filesystem::MockFile>>());
+  boolsockopts_[SockOptKey(sockfd, level, optname)] = !!*reinterpret_cast<const int*>(optval);
+  return 0;
+};
+
+int MockOsSysCalls::getsockopt(int sockfd, int level, int optname, void* optval,
+                               socklen_t* optlen) {
+  ASSERT(*optlen == sizeof(int));
+  int val = 0;
+  const auto& it = boolsockopts_.find(SockOptKey(sockfd, level, optname));
+  if (it != boolsockopts_.end()) {
+    val = it->second;
+  }
+  // Allow mocking system call failure.
+  if (getsockopt_(sockfd, level, optname, optval, optlen) != 0) {
+    return -1;
+  }
+  *reinterpret_cast<int*>(optval) = val;
+  return 0;
 }
 
-MockApi::~MockApi() {}
-
-} // Api
+} // namespace Api
+} // namespace Envoy

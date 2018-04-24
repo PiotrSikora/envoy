@@ -1,34 +1,49 @@
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <list>
+#include <string>
+
 #include "envoy/http/filter.h"
-#include "envoy/server/instance.h"
+#include "envoy/router/route_config_provider_manager.h"
+#include "envoy/server/filter_config.h"
 
 #include "common/common/logger.h"
+#include "common/config/well_known_names.h"
 #include "common/http/conn_manager_impl.h"
 #include "common/json/json_loader.h"
 
+namespace Envoy {
 namespace Server {
 namespace Configuration {
 
-enum class HttpFilterType { Decoder, Encoder, Both };
-
 /**
- * Callback lambda used for dynamic HTTP filter chain construction.
+ * Config registration for the HTTP connection manager filter. @see NamedNetworkFilterConfigFactory.
  */
-typedef std::function<void(Http::FilterChainFactoryCallbacks&)> HttpFilterFactoryCb;
-
-/**
- * Implemented by each HTTP filter and registered via registerHttpFilterConfigFactory() or the
- * convenience class RegisterHttpFilterConfigFactory.
- */
-class HttpFilterConfigFactory {
+class HttpConnectionManagerFilterConfigFactory : Logger::Loggable<Logger::Id::config>,
+                                                 public NamedNetworkFilterConfigFactory {
 public:
-  virtual ~HttpFilterConfigFactory() {}
+  // NamedNetworkFilterConfigFactory
+  Network::NetworkFilterFactoryCb createFilterFactory(const Json::Object& json_config,
+                                                      FactoryContext& context) override;
+  Network::NetworkFilterFactoryCb
+  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
+                               FactoryContext& context) override;
 
-  virtual HttpFilterFactoryCb tryCreateFilterFactory(HttpFilterType type, const std::string& name,
-                                                     const Json::Object& config,
-                                                     const std::string& stat_prefix,
-                                                     Server::Instance& server) PURE;
+  ProtobufTypes::MessagePtr createEmptyConfigProto() override {
+    return std::unique_ptr<
+        envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager>(
+        new envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager());
+  }
+  std::string name() override { return Config::NetworkFilterNames::get().HTTP_CONNECTION_MANAGER; }
+
+private:
+  Network::NetworkFilterFactoryCb createFilter(
+      const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
+          proto_config,
+      FactoryContext& context);
 };
 
 /**
@@ -46,77 +61,81 @@ public:
 };
 
 /**
- * Maps JSON config to runtime config for an HTTP connection manager network filter.
+ * Maps proto config to runtime config for an HTTP connection manager network filter.
  */
 class HttpConnectionManagerConfig : Logger::Loggable<Logger::Id::config>,
                                     public Http::FilterChainFactory,
                                     public Http::ConnectionManagerConfig {
 public:
-  HttpConnectionManagerConfig(const Json::Object& config, Server::Instance& server);
+  HttpConnectionManagerConfig(
+      const envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager&
+          config,
+      FactoryContext& context, Http::DateProvider& date_provider,
+      Router::RouteConfigProviderManager& route_config_provider_manager);
 
   // Http::FilterChainFactory
   void createFilterChain(Http::FilterChainFactoryCallbacks& callbacks) override;
 
   // Http::ConnectionManagerConfig
-  const std::list<Http::AccessLog::InstancePtr>& accessLogs() override { return access_logs_; }
+  const std::list<AccessLog::InstanceSharedPtr>& accessLogs() override { return access_logs_; }
   Http::ServerConnectionPtr createCodec(Network::Connection& connection,
                                         const Buffer::Instance& data,
                                         Http::ServerConnectionCallbacks& callbacks) override;
+  Http::DateProvider& dateProvider() override { return date_provider_; }
   std::chrono::milliseconds drainTimeout() override { return drain_timeout_; }
   FilterChainFactory& filterFactory() override { return *this; }
   bool generateRequestId() override { return generate_request_id_; }
-  const Optional<std::chrono::milliseconds>& idleTimeout() override { return idle_timeout_; }
-  const Router::Config& routeConfig() override { return *route_config_; }
+  const absl::optional<std::chrono::milliseconds>& idleTimeout() override { return idle_timeout_; }
+  Router::RouteConfigProvider& routeConfigProvider() override { return *route_config_provider_; }
   const std::string& serverName() override { return server_name_; }
   Http::ConnectionManagerStats& stats() override { return stats_; }
+  Http::ConnectionManagerTracingStats& tracingStats() override { return tracing_stats_; }
   bool useRemoteAddress() override { return use_remote_address_; }
-  bool isTracing() override { return is_tracing_; }
-  const std::string& localAddress() override;
-  const Optional<std::string>& userAgent() override { return user_agent_; }
-
-  static void registerHttpFilterConfigFactory(HttpFilterConfigFactory& factory) {
-    filterConfigFactories().push_back(&factory);
+  uint32_t xffNumTrustedHops() const override { return xff_num_trusted_hops_; }
+  Http::ForwardClientCertType forwardClientCert() override { return forward_client_cert_; }
+  const std::vector<Http::ClientCertDetailsType>& setCurrentClientCertDetails() const override {
+    return set_current_client_cert_details_;
   }
+  const Http::TracingConnectionManagerConfig* tracingConfig() override {
+    return tracing_config_.get();
+  }
+  const Network::Address::Instance& localAddress() override;
+  const absl::optional<std::string>& userAgent() override { return user_agent_; }
+  Http::ConnectionManagerListenerStats& listenerStats() override { return listener_stats_; }
+  bool proxy100Continue() const override { return proxy_100_continue_; }
+  const Http::Http1Settings& http1Settings() const override { return http1_settings_; }
 
   static const std::string DEFAULT_SERVER_STRING;
 
 private:
   enum class CodecType { HTTP1, HTTP2, AUTO };
 
-  static std::list<HttpFilterConfigFactory*>& filterConfigFactories() {
-    static std::list<HttpFilterConfigFactory*> filter_config_factories;
-    return filter_config_factories;
-  }
-
-  HttpFilterType stringToType(const std::string& type);
-
-  Server::Instance& server_;
+  FactoryContext& context_;
   std::list<HttpFilterFactoryCb> filter_factories_;
-  std::list<Http::AccessLog::InstancePtr> access_logs_;
+  std::list<AccessLog::InstanceSharedPtr> access_logs_;
   const std::string stats_prefix_;
   Http::ConnectionManagerStats stats_;
-  bool use_remote_address_{};
+  Http::ConnectionManagerTracingStats tracing_stats_;
+  const bool use_remote_address_{};
+  const uint32_t xff_num_trusted_hops_;
+  Http::ForwardClientCertType forward_client_cert_;
+  std::vector<Http::ClientCertDetailsType> set_current_client_cert_details_;
+  Router::RouteConfigProviderManager& route_config_provider_manager_;
   CodecType codec_type_;
-  const uint64_t codec_options_;
+  const Http::Http2Settings http2_settings_;
+  const Http::Http1Settings http1_settings_;
   std::string server_name_;
-  bool is_tracing_;
-  Optional<std::string> user_agent_;
-  Optional<std::chrono::milliseconds> idle_timeout_;
-  Router::ConfigPtr route_config_;
+  Http::TracingConnectionManagerConfigPtr tracing_config_;
+  absl::optional<std::string> user_agent_;
+  absl::optional<std::chrono::milliseconds> idle_timeout_;
+  Router::RouteConfigProviderSharedPtr route_config_provider_;
   std::chrono::milliseconds drain_timeout_;
   bool generate_request_id_;
+  Http::DateProvider& date_provider_;
+  Http::ConnectionManagerListenerStats listener_stats_;
+  const bool proxy_100_continue_;
 };
 
-/**
- * @see HttpFilterConfigFactory.
- */
-template <class T> class RegisterHttpFilterConfigFactory {
-public:
-  RegisterHttpFilterConfigFactory() {
-    static T instance;
-    HttpConnectionManagerConfig::registerHttpFilterConfigFactory(instance);
-  }
-};
-
-} // Configuration
-} // Server
+} // namespace Configuration
+} // namespace Server
+} // namespace Envoy

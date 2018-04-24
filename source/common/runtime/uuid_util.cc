@@ -1,9 +1,13 @@
-#include "runtime_impl.h"
-#include "uuid_util.h"
+#include "common/runtime/uuid_util.h"
+
+#include <cstdint>
+#include <string>
 
 #include "common/common/utility.h"
+#include "common/runtime/runtime_impl.h"
 
-bool UuidUtils::uuidModBy(const std::string& uuid, uint16_t& out, uint16_t mod) {
+namespace Envoy {
+bool UuidUtils::uuidModBy(const std::string& uuid, uint64_t& out, uint64_t mod) {
   if (uuid.length() < 8) {
     return false;
   }
@@ -56,3 +60,4 @@ bool UuidUtils::setTraceableUuid(std::string& uuid, UuidTraceStatus trace_status
 
   return true;
 }
+} // namespace Envoy

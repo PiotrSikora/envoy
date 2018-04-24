@@ -1,7 +1,11 @@
 #pragma once
 
-#include "assert.h"
+#include <list>
+#include <memory>
 
+#include "common/common/assert.h"
+
+namespace Envoy {
 /**
  * Mixin class that allows an object contained in a unique pointer to be easily linked and unlinked
  * from lists.
@@ -32,9 +36,7 @@ public:
     ASSERT(inserted_);
     ASSERT(std::find(list1.begin(), list1.end(), *entry_) != list1.end());
 
-    std::unique_ptr<T> removed = std::move(*entry_);
-    list1.erase(entry_);
-    entry_ = list2.emplace(list2.begin(), std::move(removed));
+    list2.splice(list2.begin(), list1, entry_);
   }
 
   /**
@@ -81,3 +83,4 @@ private:
   bool inserted_; // iterators do not have any "invalid" value so we need this boolean for sanity
                   // checking.
 };
+} // namespace Envoy

@@ -1,16 +1,23 @@
 #pragma once
 
-#include "envoy/common/optional.h"
+#include <cstdint>
+#include <list>
+#include <memory>
+
 #include "envoy/event/deferred_deletable.h"
 #include "envoy/event/timer.h"
 #include "envoy/http/conn_pool.h"
 #include "envoy/network/connection.h"
+#include "envoy/stats/timespan.h"
 #include "envoy/upstream/upstream.h"
 
 #include "common/common/linked_object.h"
 #include "common/http/codec_client.h"
 #include "common/http/codec_wrappers.h"
 
+#include "absl/types/optional.h"
+
+namespace Envoy {
 namespace Http {
 namespace Http1 {
 
@@ -22,53 +29,49 @@ namespace Http1 {
  */
 class ConnPoolImpl : Logger::Loggable<Logger::Id::pool>, public ConnectionPool::Instance {
 public:
-  ConnPoolImpl(Event::Dispatcher& dispatcher, Upstream::ConstHostPtr host, Stats::Store& store,
-               Upstream::ResourcePriority priority)
-      : dispatcher_(dispatcher), host_(host), store_(store), priority_(priority) {}
+  ConnPoolImpl(Event::Dispatcher& dispatcher, Upstream::HostConstSharedPtr host,
+               Upstream::ResourcePriority priority,
+               const Network::ConnectionSocket::OptionsSharedPtr& options)
+      : dispatcher_(dispatcher), host_(host), priority_(priority), socket_options_(options) {}
 
   ~ConnPoolImpl();
 
   // ConnectionPool::Instance
+  Http::Protocol protocol() const override { return Http::Protocol::Http11; }
   void addDrainedCallback(DrainedCb cb) override;
+  void drainConnections() override;
   ConnectionPool::Cancellable* newStream(StreamDecoder& response_decoder,
                                          ConnectionPool::Callbacks& callbacks) override;
 
 protected:
   struct ActiveClient;
 
-  struct RequestEncoderWrapper : public StreamEncoderWrapper, public StreamCallbacks {
-    RequestEncoderWrapper(StreamEncoder& inner, ActiveClient& parent)
-        : StreamEncoderWrapper(inner), parent_(parent) {
-      inner.getStream().addCallbacks(*this);
-    }
+  struct StreamWrapper : public StreamEncoderWrapper,
+                         public StreamDecoderWrapper,
+                         public StreamCallbacks {
+    StreamWrapper(StreamDecoder& response_decoder, ActiveClient& parent);
+    ~StreamWrapper();
 
     // StreamEncoderWrapper
     void onEncodeComplete() override;
-
-    // Http::StreamCallbacks
-    void onResetStream(StreamResetReason) override { parent_.parent_.onDownstreamReset(parent_); }
-
-    ActiveClient& parent_;
-    bool encode_complete_{};
-  };
-
-  typedef std::unique_ptr<RequestEncoderWrapper> RequestEncoderWrapperPtr;
-
-  struct ResponseDecoderWrapper : public StreamDecoderWrapper {
-    ResponseDecoderWrapper(StreamDecoder& inner, ActiveClient& parent);
-    ~ResponseDecoderWrapper();
 
     // StreamDecoderWrapper
     void decodeHeaders(HeaderMapPtr&& headers, bool end_stream) override;
     void onPreDecodeComplete() override {}
     void onDecodeComplete() override;
 
+    // Http::StreamCallbacks
+    void onResetStream(StreamResetReason) override { parent_.parent_.onDownstreamReset(parent_); }
+    void onAboveWriteBufferHighWatermark() override {}
+    void onBelowWriteBufferLowWatermark() override {}
+
     ActiveClient& parent_;
+    bool encode_complete_{};
     bool saw_close_header_{};
-    bool complete_{};
+    bool decode_complete_{};
   };
 
-  typedef std::unique_ptr<ResponseDecoderWrapper> ResponseDecoderWrapperPtr;
+  typedef std::unique_ptr<StreamWrapper> StreamWrapperPtr;
 
   struct ActiveClient : LinkedObject<ActiveClient>,
                         public Network::ConnectionCallbacks,
@@ -79,15 +82,16 @@ protected:
     void onConnectTimeout();
 
     // Network::ConnectionCallbacks
-    void onBufferChange(Network::ConnectionBufferType type, uint64_t old_size,
-                        int64_t delta) override;
-    void onEvent(uint32_t events) override { parent_.onConnectionEvent(*this, events); }
+    void onEvent(Network::ConnectionEvent event) override {
+      parent_.onConnectionEvent(*this, event);
+    }
+    void onAboveWriteBufferHighWatermark() override {}
+    void onBelowWriteBufferLowWatermark() override {}
 
     ConnPoolImpl& parent_;
     CodecClientPtr codec_client_;
-    Upstream::HostDescriptionPtr real_host_description_;
-    RequestEncoderWrapperPtr request_encoder_;
-    ResponseDecoderWrapperPtr response_decoder_;
+    Upstream::HostDescriptionConstSharedPtr real_host_description_;
+    StreamWrapperPtr stream_wrapper_;
     Event::TimerPtr connect_timer_;
     Stats::TimespanPtr conn_length_;
     uint64_t remaining_requests_;
@@ -115,20 +119,21 @@ protected:
   virtual CodecClientPtr createCodecClient(Upstream::Host::CreateConnectionData& data) PURE;
   void checkForDrained();
   void createNewConnection();
-  void onConnectionEvent(ActiveClient& client, uint32_t events);
+  void onConnectionEvent(ActiveClient& client, Network::ConnectionEvent event);
   void onDownstreamReset(ActiveClient& client);
   void onPendingRequestCancel(PendingRequest& request);
   void onResponseComplete(ActiveClient& client);
   void processIdleClient(ActiveClient& client);
 
+  Stats::TimespanPtr conn_connect_ms_;
   Event::Dispatcher& dispatcher_;
-  Upstream::ConstHostPtr host_;
+  Upstream::HostConstSharedPtr host_;
   std::list<ActiveClientPtr> ready_clients_;
   std::list<ActiveClientPtr> busy_clients_;
   std::list<PendingRequestPtr> pending_requests_;
-  Stats::Store& store_;
   std::list<DrainedCb> drained_callbacks_;
   Upstream::ResourcePriority priority_;
+  const Network::ConnectionSocket::OptionsSharedPtr socket_options_;
 };
 
 /**
@@ -136,13 +141,15 @@ protected:
  */
 class ConnPoolImplProd : public ConnPoolImpl {
 public:
-  ConnPoolImplProd(Event::Dispatcher& dispatcher, Upstream::ConstHostPtr host, Stats::Store& store,
-                   Upstream::ResourcePriority priority)
-      : ConnPoolImpl(dispatcher, host, store, priority) {}
+  ConnPoolImplProd(Event::Dispatcher& dispatcher, Upstream::HostConstSharedPtr host,
+                   Upstream::ResourcePriority priority,
+                   const Network::ConnectionSocket::OptionsSharedPtr& options)
+      : ConnPoolImpl(dispatcher, host, priority, options) {}
 
   // ConnPoolImpl
   CodecClientPtr createCodecClient(Upstream::Host::CreateConnectionData& data) override;
 };
 
-} // Http1
-} // Http
+} // namespace Http1
+} // namespace Http
+} // namespace Envoy

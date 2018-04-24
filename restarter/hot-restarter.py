@@ -5,17 +5,64 @@ import signal
 import sys
 import time
 
+# The number of seconds to wait for children to gracefully exit after
+# propagating SIGTERM before force killing children.
+# NOTE: If using a shutdown mechanism such as runit's `force-stop` which sends
+# a KILL after a specified timeout period, it's important to ensure that this
+# constant is smaller than the KILL timeout
+TERM_WAIT_SECONDS = 30
+
 restart_epoch = 0
 pid_list = []
 
-def force_kill_all_children():
-  """ Iterate through all known children and force kill them. In the future we might consider
-      possibly giving the children time to exit but this is fine for now. If someone force kills
-      us and does not clean the process tree this will leave children around unless they choose
-      to end themselves if their parent dies. """
+def term_all_children():
+  """ Iterate through all known child processes, send a TERM signal to each of
+  them, and then wait up to TERM_WAIT_SECONDS for them to exit gracefully,
+  exiting early if all children go away. If one or more children have not
+  exited after TERM_WAIT_SECONDS, they will be forcibly killed """
 
   # First uninstall the SIGCHLD handler so that we don't get called again.
   signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
+  global pid_list
+  for pid in pid_list:
+    print "sending TERM to PID={}".format(pid)
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except:
+      print "error sending TERM to PID={} continuing".format(pid)
+
+  all_exited = False
+
+  # wait for TERM_WAIT_SECONDS seconds for children to exit cleanly
+  retries = 0
+  while not all_exited and retries < TERM_WAIT_SECONDS:
+    for pid in list(pid_list):
+      ret_pid, exit_status = os.waitpid(pid, os.WNOHANG)
+      if ret_pid == 0 and exit_status == 0:
+        # the child is still running
+        continue
+
+      pid_list.remove(pid)
+
+    if len(pid_list) == 0:
+      all_exited = True
+    else:
+      retries += 1
+      time.sleep(1)
+
+  if all_exited:
+    print "all children exited cleanly"
+  else:
+    for pid in pid_list:
+      print "child PID={} did not exit cleanly, killing".format(pid)
+    force_kill_all_children()
+    sys.exit(1) # error status because a child did not exit cleanly
+
+def force_kill_all_children():
+  """ Iterate through all known child processes and force kill them. Typically
+  term_all_children() should be attempted first to give child processes an
+  opportunity to clean up state before exiting """
 
   global pid_list
   for pid in pid_list:
@@ -29,10 +76,10 @@ def force_kill_all_children():
 
 
 def sigterm_handler(signum, frame):
-  """ Handler for SIGTERM. See force_kill_all_children() for further discussion. """
+  """ Handler for SIGTERM. See term_all_children() for further discussion. """
 
   print "got SIGTERM"
-  force_kill_all_children()
+  term_all_children()
   sys.exit(0)
 
 
@@ -44,7 +91,7 @@ def sighup_handler(signum, frame):
   fork_and_exec()
 
 def sigusr1_handler(signum, frame):
-  """ Handler for SIGUSR1. Propagate SIGUSR1 to all of the children """
+  """ Handler for SIGUSR1. Propagate SIGUSR1 to all of the child processes """
 
   global pid_list
   for pid in pid_list:
@@ -56,10 +103,10 @@ def sigusr1_handler(signum, frame):
 
 
 def sigchld_handler(signum, frame):
-  """ Handler for SIGCHLD. Iterates through all of our known children and figures out whether
+  """ Handler for SIGCHLD. Iterates through all of our known child processes and figures out whether
       the signal/exit was expected or not. Python doesn't have any of the native signal handlers
-      ability to get the child info directly from the signal handler so we need to iterate through
-      all children and see what happened."""
+      ability to get the child process info directly from the signal handler so we need to iterate
+      through all child processes and see what happened."""
 
   print "got SIGCHLD"
 
@@ -92,13 +139,17 @@ def sigchld_handler(signum, frame):
       kill_all_and_exit = True
 
   if kill_all_and_exit:
-    print "Due to abnormal exit, force killing all children and exiting"
+    print "Due to abnormal exit, force killing all child processes and exiting"
+
+    # First uninstall the SIGCHLD handler so that we don't get called again.
+    signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+
     force_kill_all_children()
 
   # Our last child died, so we have no purpose. Exit.
   if not pid_list:
-    print "exiting due to lack of children"
-    sys.exit(0)
+    print "exiting due to lack of child processes"
+    sys.exit(1 if kill_all_and_exit else 0)
 
 
 def fork_and_exec():
@@ -107,7 +158,7 @@ def fork_and_exec():
 
   global restart_epoch
   os.environ['RESTART_EPOCH'] = str(restart_epoch)
-  print "forking and execing new child at epoch {}".format(restart_epoch)
+  print "forking and execing new child process at epoch {}".format(restart_epoch)
   restart_epoch += 1
 
   child_pid = os.fork()
