@@ -39,11 +39,6 @@ protected:
 
     Network::ClientConnection& connection();
     void addUpstreamCallbacks(ConnectionPool::UpstreamCallbacks& callbacks);
-    void setConnectionState(ConnectionPool::ConnectionStatePtr&& state) {
-      parent_.setConnectionState(std::move(state));
-    };
-    ConnectionPool::ConnectionState* connectionState() { return parent_.connectionState(); }
-
     void release(bool closed);
 
     void invalidate() { conn_valid_ = false; }
@@ -65,12 +60,6 @@ protected:
     void addUpstreamCallbacks(ConnectionPool::UpstreamCallbacks& callbacks) override {
       wrapper_->addUpstreamCallbacks(callbacks);
     };
-    void setConnectionState(ConnectionPool::ConnectionStatePtr&& state) override {
-      wrapper_->setConnectionState(std::move(state));
-    }
-    ConnectionPool::ConnectionState* connectionState() override {
-      return wrapper_->connectionState();
-    }
 
     ConnectionWrapperSharedPtr wrapper_;
   };
@@ -101,16 +90,10 @@ protected:
     void onAboveWriteBufferHighWatermark() override;
     void onBelowWriteBufferLowWatermark() override;
 
-    void setConnectionState(ConnectionPool::ConnectionStatePtr&& state) {
-      conn_state_ = std::move(state);
-    }
-    ConnectionPool::ConnectionState* connectionState() { return conn_state_.get(); }
-
     ConnPoolImpl& parent_;
     Upstream::HostDescriptionConstSharedPtr real_host_description_;
     ConnectionWrapperSharedPtr wrapper_;
     Network::ClientConnectionPtr conn_;
-    ConnectionPool::ConnectionStatePtr conn_state_;
     Event::TimerPtr connect_timer_;
     Stats::TimespanPtr conn_length_;
     uint64_t remaining_requests_;
