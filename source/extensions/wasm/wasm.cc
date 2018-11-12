@@ -1,10 +1,10 @@
+#include "extensions/wasm/wasm.h"
+
 #include <memory>
 
 #include "envoy/common/exception.h"
 #include "envoy/common/pure.h"
 #include "envoy/event/dispatcher.h"
-
-#include "extensions/wasm/wasm.h"
 
 #include "extensions/common/wasm/wasm.h"
 
@@ -22,14 +22,16 @@ void Context::setTickPeriod(std::chrono::milliseconds tick_period) {
   wasm_->setTickPeriod(tick_period);
 }
 
-void Context::setTickPeriodMillisecondsHandler(void *context, uint32_t tick_period_milliseconds) {
-  WASM_CONTEXT(context, Context)->setTickPeriod(std::chrono::milliseconds(tick_period_milliseconds));
+void Context::setTickPeriodMillisecondsHandler(void* context, uint32_t tick_period_milliseconds) {
+  WASM_CONTEXT(context, Context)
+      ->setTickPeriod(std::chrono::milliseconds(tick_period_milliseconds));
 }
-  
+
 Wasm::Wasm(absl::string_view vm) {
   wasm_vm_ = Common::Wasm::createWasmVm(vm);
   registerCallback(wasm_vm_.get(), "_wasmLog", &Common::Wasm::Context::wasmLogHandler);
-  registerCallback(wasm_vm_.get(), "_setTickPeriodMilliseconds", &Context::setTickPeriodMillisecondsHandler);
+  registerCallback(wasm_vm_.get(), "_setTickPeriodMilliseconds",
+                   &Context::setTickPeriodMillisecondsHandler);
 }
 
 bool Wasm::initialize(absl::string_view file, bool allow_precompiled) {

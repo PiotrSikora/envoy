@@ -21,10 +21,10 @@ namespace Wasm {
 
 class TestContext : public Extensions::Wasm::Context {
 public:
-  TestContext(Wasm *wasm) : Extensions::Wasm::Context(wasm) {}
+  TestContext(Wasm* wasm) : Extensions::Wasm::Context(wasm) {}
   ~TestContext() override {}
   MOCK_METHOD2(scriptLog, void(spdlog::level::level_enum level, absl::string_view message));
-  MOCK_METHOD1(setTickPeriodMilliseconds, void(uint32_t tick_period_milliseconds)); 
+  MOCK_METHOD1(setTickPeriodMilliseconds, void(uint32_t tick_period_milliseconds));
 };
 
 TEST(WasmTest, Logging) {

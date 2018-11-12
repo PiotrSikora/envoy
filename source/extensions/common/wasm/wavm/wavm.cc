@@ -1,7 +1,8 @@
 #include "extensions/common/wasm/wavm/wavm.h"
 
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
+
 #include <atomic>
 #include <fstream>
 #include <memory>
@@ -17,6 +18,7 @@
 #include "extensions/common/wasm/wasm.h"
 #include "extensions/common/wasm/well_known_names.h"
 
+#include "WAVM/Emscripten/Emscripten.h"
 #include "WAVM/IR/Module.h"
 #include "WAVM/IR/Operators.h"
 #include "WAVM/IR/Types.h"
@@ -33,10 +35,9 @@
 #include "WAVM/Platform/Mutex.h"
 #include "WAVM/Platform/Thread.h"
 #include "WAVM/Runtime/Intrinsics.h"
+#include "WAVM/Runtime/Linker.h"
 #include "WAVM/Runtime/Runtime.h"
 #include "WAVM/Runtime/RuntimeData.h"
-#include "WAVM/Runtime/Linker.h"
-#include "WAVM/Emscripten/Emscripten.h"
 #include "WAVM/WASM/WASM.h"
 #include "WAVM/WASTParse/WASTParse.h"
 
@@ -55,198 +56,200 @@ namespace Wasm {
 namespace Wavm {
 namespace {
 
-using Context = Wasm::Context;  // Shadowing WAVM::Runtime::Context.
+using Context = Wasm::Context; // Shadowing WAVM::Runtime::Context.
 
 const Logger::Id wasmId = Logger::Id::wasm;
 
 struct SaveRestoreContext {
-  explicit SaveRestoreContext(Context *context) { saved_context = current_context_; current_context_ = context; }
+  explicit SaveRestoreContext(Context* context) {
+    saved_context = current_context_;
+    current_context_ = context;
+  }
   ~SaveRestoreContext() { current_context_ = saved_context; }
-   Context* saved_context; 
+  Context* saved_context;
 };
 
-#define CALL_WITH_CONTEXT(_x, _context) do { \
-  SaveRestoreContext _saved_context(static_cast<Context*>(_context)); \
-  _x; \
-} while (0)
+#define CALL_WITH_CONTEXT(_x, _context)                                                            \
+  do {                                                                                             \
+    SaveRestoreContext _saved_context(static_cast<Context*>(_context));                            \
+    _x;                                                                                            \
+  } while (0)
 
-#define CALL_WITH_CONTEXT_RETURN(_x, _context, _type, _member) do { \
-  SaveRestoreContext _saved_context(static_cast<Context*>(_context)); \
-  return static_cast<_type>(_x[0]._member); \
-} while (0)
+#define CALL_WITH_CONTEXT_RETURN(_x, _context, _type, _member)                                     \
+  do {                                                                                             \
+    SaveRestoreContext _saved_context(static_cast<Context*>(_context));                            \
+    return static_cast<_type>(_x[0]._member);                                                      \
+  } while (0)
 
 std::string readFile(absl::string_view filename) {
   const std::string fn(filename);
   std::ifstream file(fn);
-  if (file.fail()) return "";
+  if (file.fail())
+    return "";
   std::stringstream file_string_stream;
   file_string_stream << file.rdbuf();
   return file_string_stream.str();
 }
 
 class RootResolver : public Resolver, public Logger::Loggable<wasmId> {
-  public:
-    RootResolver(Compartment* compartment) : compartment_(compartment) {}
-    virtual ~RootResolver() {
-      moduleNameToInstanceMap_.clear();  
-    }
+public:
+  RootResolver(Compartment* compartment) : compartment_(compartment) {}
+  virtual ~RootResolver() { moduleNameToInstanceMap_.clear(); }
 
-    bool resolve(const std::string& moduleName, const std::string& exportName, ExternType type,
-        Object*& outObject) override {
-      auto namedInstance = moduleNameToInstanceMap_.get(moduleName);
-      if(namedInstance) {
-        outObject = getInstanceExport(*namedInstance, exportName);
-        // If we were looking in 'env' and missed look in 'envoy'.
-        if (!outObject && moduleName == "env") {
-          auto envoyInstance = moduleNameToInstanceMap_.get("envoy");
-          if (namedInstance) {
-            outObject = getInstanceExport(*envoyInstance, exportName);
-          }
-        }
-        if (outObject) {
-          if (isA(outObject, type)) {
-            return true;
-          } else {
-            ENVOY_LOG(warn, "Resolved import {}.{} to a {}, but was expecting {}",
-                moduleName, exportName, asString(getObjectType(outObject)), asString(type));
-            return false;
-          }
+  bool resolve(const std::string& moduleName, const std::string& exportName, ExternType type,
+               Object*& outObject) override {
+    auto namedInstance = moduleNameToInstanceMap_.get(moduleName);
+    if (namedInstance) {
+      outObject = getInstanceExport(*namedInstance, exportName);
+      // If we were looking in 'env' and missed look in 'envoy'.
+      if (!outObject && moduleName == "env") {
+        auto envoyInstance = moduleNameToInstanceMap_.get("envoy");
+        if (namedInstance) {
+          outObject = getInstanceExport(*envoyInstance, exportName);
         }
       }
-
-      ENVOY_LOG(error, "Generated stub for missing import {}.{} : {}",
-          moduleName, exportName, asString(type));
-      outObject = getStubObject(exportName, type);
-      return true;
+      if (outObject) {
+        if (isA(outObject, type)) {
+          return true;
+        } else {
+          ENVOY_LOG(warn, "Resolved import {}.{} to a {}, but was expecting {}", moduleName,
+                    exportName, asString(getObjectType(outObject)), asString(type));
+          return false;
+        }
+      }
     }
 
-    Object* getStubObject(const std::string& exportName, ExternType type) const {
-      switch (type.kind) {
-        case IR::ExternKind::function:
-          {
-            // Generate a function body that just uses the unreachable op to fault if called.
-            Serialization::ArrayOutputStream codeStream;
-            OperatorEncoderStream encoder(codeStream);
-            encoder.unreachable();
-            encoder.end();
+    ENVOY_LOG(error, "Generated stub for missing import {}.{} : {}", moduleName, exportName,
+              asString(type));
+    outObject = getStubObject(exportName, type);
+    return true;
+  }
 
-            // Generate a module for the stub function.
-            IR::Module stubIRModule;
-            DisassemblyNames stubModuleNames;
-            stubIRModule.types.push_back(asFunctionType(type));
-            stubIRModule.functions.defs.push_back({{0}, {}, std::move(codeStream.getBytes()), {}});
-            stubIRModule.exports.push_back({"importStub", IR::ExternKind::function, 0});
-            stubModuleNames.functions.push_back({"importStub: " + exportName, {}, {}});
-            IR::setDisassemblyNames(stubIRModule, stubModuleNames);
-            IR::validatePreCodeSections(stubIRModule);
-            DeferredCodeValidationState deferredCodeValidationState;
-            IR::validatePostCodeSections(stubIRModule, deferredCodeValidationState);
+  Object* getStubObject(const std::string& exportName, ExternType type) const {
+    switch (type.kind) {
+    case IR::ExternKind::function: {
+      // Generate a function body that just uses the unreachable op to fault if called.
+      Serialization::ArrayOutputStream codeStream;
+      OperatorEncoderStream encoder(codeStream);
+      encoder.unreachable();
+      encoder.end();
 
-            // Instantiate the module and return the stub function instance.
-            auto stubModule = compileModule(stubIRModule);
-            auto stubModuleInstance = instantiateModule(compartment_, stubModule, {}, "importStub");
-            return getInstanceExport(stubModuleInstance, "importStub");
-          }
-        case IR::ExternKind::memory:
-          return asObject(
-              Runtime::createMemory(compartment_, asMemoryType(type), std::string(exportName)));
-        case IR::ExternKind::table:
-          return asObject(
-              Runtime::createTable(compartment_, asTableType(type), std::string(exportName)));
-        case IR::ExternKind::global:
-          return asObject(Runtime::createGlobal(
-                compartment_,
-                asGlobalType(type),
-                IR::Value(asGlobalType(type).valueType, IR::UntaggedValue())));
-        case IR::ExternKind::exceptionType:
-          return asObject(
-              Runtime::createExceptionType(compartment_, asExceptionType(type), "importStub"));
-        default: Errors::unreachable();
-      };
+      // Generate a module for the stub function.
+      IR::Module stubIRModule;
+      DisassemblyNames stubModuleNames;
+      stubIRModule.types.push_back(asFunctionType(type));
+      stubIRModule.functions.defs.push_back({{0}, {}, std::move(codeStream.getBytes()), {}});
+      stubIRModule.exports.push_back({"importStub", IR::ExternKind::function, 0});
+      stubModuleNames.functions.push_back({"importStub: " + exportName, {}, {}});
+      IR::setDisassemblyNames(stubIRModule, stubModuleNames);
+      IR::validatePreCodeSections(stubIRModule);
+      DeferredCodeValidationState deferredCodeValidationState;
+      IR::validatePostCodeSections(stubIRModule, deferredCodeValidationState);
+
+      // Instantiate the module and return the stub function instance.
+      auto stubModule = compileModule(stubIRModule);
+      auto stubModuleInstance = instantiateModule(compartment_, stubModule, {}, "importStub");
+      return getInstanceExport(stubModuleInstance, "importStub");
     }
+    case IR::ExternKind::memory:
+      return asObject(
+          Runtime::createMemory(compartment_, asMemoryType(type), std::string(exportName)));
+    case IR::ExternKind::table:
+      return asObject(
+          Runtime::createTable(compartment_, asTableType(type), std::string(exportName)));
+    case IR::ExternKind::global:
+      return asObject(
+          Runtime::createGlobal(compartment_, asGlobalType(type),
+                                IR::Value(asGlobalType(type).valueType, IR::UntaggedValue())));
+    case IR::ExternKind::exceptionType:
+      return asObject(
+          Runtime::createExceptionType(compartment_, asExceptionType(type), "importStub"));
+    default:
+      Errors::unreachable();
+    };
+  }
 
-    HashMap<std::string, ModuleInstance*> & moduleNameToInstanceMap() {
-      return moduleNameToInstanceMap_;
-    }
+  HashMap<std::string, ModuleInstance*>& moduleNameToInstanceMap() {
+    return moduleNameToInstanceMap_;
+  }
 
-  private:
-    Compartment* const compartment_;
-    HashMap<std::string, ModuleInstance*> moduleNameToInstanceMap_;
+private:
+  Compartment* const compartment_;
+  HashMap<std::string, ModuleInstance*> moduleNameToInstanceMap_;
 };
 
 bool loadModule(absl::string_view filename, IR::Module& outModule) {
   auto bytes = readFile(filename);
-  if (bytes.empty()) return false;
+  if (bytes.empty())
+    return false;
 
   // If the file starts with the WASM binary magic number, load it as a binary irModule.
   static const uint8_t wasmMagicNumber[4] = {0x00, 0x61, 0x73, 0x6d};
-  if(bytes.size() >= 4 && !memcmp(bytes.c_str(), wasmMagicNumber, 4)) {
+  if (bytes.size() >= 4 && !memcmp(bytes.c_str(), wasmMagicNumber, 4)) {
     return WASM::loadBinaryModule(bytes.c_str(), bytes.size(), outModule);
   } else {
     // Load it as a text irModule.
     std::vector<WAST::Error> parseErrors;
-    if(!WAST::parseModule(bytes.c_str(), bytes.size(), outModule, parseErrors)) {
+    if (!WAST::parseModule(bytes.c_str(), bytes.size(), outModule, parseErrors)) {
       return false;
     }
     return true;
   }
 }
 
-}  // namespace
+} // namespace
 
-struct EnvoyHandlerBase  {
+struct EnvoyHandlerBase {
   virtual ~EnvoyHandlerBase() {}
 };
 
-template<typename F>
-struct EnvoyHandler : EnvoyHandlerBase {
+template <typename F> struct EnvoyHandler : EnvoyHandlerBase {
   ~EnvoyHandler() override {}
   explicit EnvoyHandler(F ahandler) : handler(ahandler) {}
   F handler;
 };
 
-template<typename F>
-EnvoyHandlerBase* MakeEnvoyHandler(F handler) {
+template <typename F> EnvoyHandlerBase* MakeEnvoyHandler(F handler) {
   return new EnvoyHandler<F>(handler);
 }
 
 class Wavm : public WasmVm {
-  public:
-    Wavm() = default;
-    ~Wavm() override;
+public:
+  Wavm() = default;
+  ~Wavm() override;
 
-    // WasmVm
-    absl::string_view vm() override { return Wasm::WasmVmNames::get().Wavm; }
-    bool initialize(absl::string_view file, bool allow_precompiled) override;
-    void start(Context *context) override;
-    void* allocMemory(uint32_t size, uint32_t *pointer) override;
-    absl::string_view getMemory(uint32_t pointer, uint32_t size) override;
+  // WasmVm
+  absl::string_view vm() override { return Wasm::WasmVmNames::get().Wavm; }
+  bool initialize(absl::string_view file, bool allow_precompiled) override;
+  void start(Context* context) override;
+  void* allocMemory(uint32_t size, uint32_t* pointer) override;
+  absl::string_view getMemory(uint32_t pointer, uint32_t size) override;
 
-    Memory* memory() { return memory_; }
-    Runtime::Context* context() { return context_; }
-    ModuleInstance* moduleInstance() { return moduleInstance_; }
-    ModuleInstance* envoyModuleInstance() { return moduleInstance_; }
+  Memory* memory() { return memory_; }
+  Runtime::Context* context() { return context_; }
+  ModuleInstance* moduleInstance() { return moduleInstance_; }
+  ModuleInstance* envoyModuleInstance() { return moduleInstance_; }
 
-    void GetFunctions();
-    void RegisterCallbacks();
+  void GetFunctions();
+  void RegisterCallbacks();
 
 #if 0
     uint32_t next_id_ = 1;   // 0 is reserved for the default_context_.
 #endif
-    std::unordered_map<uint32_t, Context*> context_map_;
+  std::unordered_map<uint32_t, Context*> context_map_;
 
-    bool hasInstantiatedModule_ = false;
-    IR::Module irModule_;
-    GCPointer<ModuleInstance> moduleInstance_;
-    Memory* memory_;
-    Emscripten::Instance* emscriptenInstance_ = nullptr;
-    GCPointer<Compartment> compartment_;
-    GCPointer<Runtime::Context> context_;
-    Intrinsics::Module envoy_module_;
-    GCPointer<Runtime::ModuleInstance> envoyModuleInstance_ = nullptr;
-    std::vector<std::unique_ptr<Intrinsics::Function>> envoy_functions_;
-    std::vector<std::unique_ptr<EnvoyHandlerBase>> envoy_handlers_;
-    std::vector<WAST::Error> errors_;
+  bool hasInstantiatedModule_ = false;
+  IR::Module irModule_;
+  GCPointer<ModuleInstance> moduleInstance_;
+  Memory* memory_;
+  Emscripten::Instance* emscriptenInstance_ = nullptr;
+  GCPointer<Compartment> compartment_;
+  GCPointer<Runtime::Context> context_;
+  Intrinsics::Module envoy_module_;
+  GCPointer<Runtime::ModuleInstance> envoyModuleInstance_ = nullptr;
+  std::vector<std::unique_ptr<Intrinsics::Function>> envoy_functions_;
+  std::vector<std::unique_ptr<EnvoyHandlerBase>> envoy_handlers_;
+  std::vector<WAST::Error> errors_;
 };
 
 Wavm::~Wavm() {
@@ -283,7 +286,7 @@ bool Wavm::initialize(absl::string_view wasm_file, bool allow_precompiled) {
       }
     }
   }
-  if(!precompiledObjectSection) {
+  if (!precompiledObjectSection) {
     module = Runtime::compileModule(irModule_);
   } else {
     module = Runtime::loadPrecompiledModule(irModule_, precompiledObjectSection->data);
@@ -299,85 +302,97 @@ bool Wavm::initialize(absl::string_view wasm_file, bool allow_precompiled) {
   }
   rootResolver.moduleNameToInstanceMap().set("envoy", envoyModuleInstance_);
   LinkResult linkResult = linkModule(irModule_, rootResolver);
-  moduleInstance_ = instantiateModule(compartment_, module, std::move(linkResult.resolvedImports), std::string(wasm_file));
+  moduleInstance_ = instantiateModule(compartment_, module, std::move(linkResult.resolvedImports),
+                                      std::string(wasm_file));
   memory_ = getDefaultMemory(moduleInstance_);
   return true;
 }
 
-void Wavm::start(Context *context) {
+void Wavm::start(Context* context) {
   auto f = getStartFunction(moduleInstance_);
-  if (!f) f = asFunctionNullable(getInstanceExport(moduleInstance_, "_main"));
+  if (!f)
+    f = asFunctionNullable(getInstanceExport(moduleInstance_, "_main"));
   if (f) {
     CALL_WITH_CONTEXT(invokeFunctionChecked(context_, f, {}), context);
   }
 }
 
-void *Wavm::allocMemory(uint32_t size, uint32_t *address) {
+void* Wavm::allocMemory(uint32_t size, uint32_t* address) {
   auto f = asFunctionNullable(getInstanceExport(moduleInstance(), "_malloc"));
-  if (!f) return nullptr;
+  if (!f)
+    return nullptr;
   auto values = invokeFunctionChecked(context_, f, {size});
   ASSERT(values.values.size() == 1);
-  auto &v = values[0];
+  auto& v = values[0];
   ASSERT(v.type == ValueType::i32);
   *address = v.u32;
   return reinterpret_cast<char*>(memoryArrayPtr<U8>(memory(), v.u32, static_cast<U64>(size)));
 }
 
 absl::string_view Wavm::getMemory(uint32_t pointer, uint32_t size) {
-   return {reinterpret_cast<char*>(memoryArrayPtr<U8>(memory(), pointer, static_cast<U64>(size))),
-     static_cast<size_t>(size) };
+  return {reinterpret_cast<char*>(memoryArrayPtr<U8>(memory(), pointer, static_cast<U64>(size))),
+          static_cast<size_t>(size)};
 }
 
-std::unique_ptr<WasmVm> createWavm() {
-  return std::make_unique<Wavm>();
-}
+std::unique_ptr<WasmVm> createWavm() { return std::make_unique<Wavm>(); }
 
 } // namespace Wavm
 
-template<typename R, typename... Args>
+template <typename R, typename... Args>
 IR::FunctionType inferEnvoyFunctionType(R (*)(void*, Args...)) {
-  return IR::FunctionType(IR::inferResultType<R>(),
-      IR::TypeTuple({IR::inferValueType<Args>()...}));
+  return IR::FunctionType(IR::inferResultType<R>(), IR::TypeTuple({IR::inferValueType<Args>()...}));
 }
 
 using namespace Wavm;
 
-template<typename R, typename ...Args>
+template <typename R, typename... Args>
 void registerCallbackWavm(WasmVm* vm, absl::string_view functionName, R (*f)(Args...)) {
-  Wasm::Wavm::Wavm *wavm = static_cast<Wasm::Wavm::Wavm*>(vm);
+  Wasm::Wavm::Wavm* wavm = static_cast<Wasm::Wavm::Wavm*>(vm);
   wavm->envoy_functions_.emplace_back(
-      new Intrinsics::Function(wavm->envoy_module_, functionName.data(),
-        reinterpret_cast<void*>(f), inferEnvoyFunctionType(f),
-      IR::CallingConvention::intrinsic));
+      new Intrinsics::Function(wavm->envoy_module_, functionName.data(), reinterpret_cast<void*>(f),
+                               inferEnvoyFunctionType(f), IR::CallingConvention::intrinsic));
 }
 
-template void registerCallbackWavm<void, void*, U32>(WasmVm* vm, absl::string_view functionName, void(*f)(void*, U32));
-template void registerCallbackWavm<void, void*, U32, U32>(WasmVm* vm, absl::string_view functionName, void(*f)(void*, U32, U32));
-template void registerCallbackWavm<void, void*, U32, U32, U32>(WasmVm* vm, absl::string_view functionName, void(*f)(void*, U32, U32, U32));
-template void registerCallbackWavm<void, void*, U32, U32, U32, U32>(WasmVm* vm, absl::string_view functionName, void(*f)(void*, U32, U32, U32, U32));
-template void registerCallbackWavm<void, void*, U32, U32, U32, U32, U32>(WasmVm* vm, absl::string_view functionName, void(*f)(void*, U32, U32, U32, U32, U32));
+template void registerCallbackWavm<void, void*, U32>(WasmVm* vm, absl::string_view functionName,
+                                                     void (*f)(void*, U32));
+template void registerCallbackWavm<void, void*, U32, U32>(WasmVm* vm,
+                                                          absl::string_view functionName,
+                                                          void (*f)(void*, U32, U32));
+template void registerCallbackWavm<void, void*, U32, U32, U32>(WasmVm* vm,
+                                                               absl::string_view functionName,
+                                                               void (*f)(void*, U32, U32, U32));
+template void
+registerCallbackWavm<void, void*, U32, U32, U32, U32>(WasmVm* vm, absl::string_view functionName,
+                                                      void (*f)(void*, U32, U32, U32, U32));
+template void registerCallbackWavm<void, void*, U32, U32, U32, U32, U32>(
+    WasmVm* vm, absl::string_view functionName, void (*f)(void*, U32, U32, U32, U32, U32));
 
-template<typename R, typename ...Args>
-void getFunctionWavmReturn(WasmVm* vm, absl::string_view functionName, std::function<R(Wasm::Context*, Args...)> *function, uint32_t) {
-  Wasm::Wavm::Wavm *wavm = static_cast<Wasm::Wavm::Wavm*>(vm);
+template <typename R, typename... Args>
+void getFunctionWavmReturn(WasmVm* vm, absl::string_view functionName,
+                           std::function<R(Wasm::Context*, Args...)>* function, uint32_t) {
+  Wasm::Wavm::Wavm* wavm = static_cast<Wasm::Wavm::Wavm*>(vm);
   auto f = asFunctionNullable(getInstanceExport(wavm->moduleInstance(), std::string(functionName)));
   if (!f)
-    f = asFunctionNullable(getInstanceExport(wavm->envoyModuleInstance(), std::string(functionName)));
+    f = asFunctionNullable(
+        getInstanceExport(wavm->envoyModuleInstance(), std::string(functionName)));
   if (!f) {
     *function = nullptr;
     return;
   }
   *function = [wavm, f](Context* context, Args... args) -> R {
-    CALL_WITH_CONTEXT_RETURN(invokeFunctionChecked(wavm->context(), f, {args...}), context, uint32_t, i32);
+    CALL_WITH_CONTEXT_RETURN(invokeFunctionChecked(wavm->context(), f, {args...}), context,
+                             uint32_t, i32);
   };
 }
 
-template<typename R, typename ...Args>
-void getFunctionWavmReturn(WasmVm* vm, absl::string_view functionName, std::function<R(Wasm::Context*, Args...)> *function, bool) {
-  Wasm::Wavm::Wavm *wavm = static_cast<Wasm::Wavm::Wavm*>(vm);
+template <typename R, typename... Args>
+void getFunctionWavmReturn(WasmVm* vm, absl::string_view functionName,
+                           std::function<R(Wasm::Context*, Args...)>* function, bool) {
+  Wasm::Wavm::Wavm* wavm = static_cast<Wasm::Wavm::Wavm*>(vm);
   auto f = asFunctionNullable(getInstanceExport(wavm->moduleInstance(), std::string(functionName)));
   if (!f)
-    f = asFunctionNullable(getInstanceExport(wavm->envoyModuleInstance(), std::string(functionName)));
+    f = asFunctionNullable(
+        getInstanceExport(wavm->envoyModuleInstance(), std::string(functionName)));
   if (!f) {
     *function = nullptr;
     return;
@@ -387,25 +402,35 @@ void getFunctionWavmReturn(WasmVm* vm, absl::string_view functionName, std::func
   };
 }
 
-template<typename R, typename ...Args>
-void getFunctionWavm(WasmVm* vm, absl::string_view functionName, std::function<R(Wasm::Context*, Args...)> *function) {
+template <typename R, typename... Args>
+void getFunctionWavm(WasmVm* vm, absl::string_view functionName,
+                     std::function<R(Wasm::Context*, Args...)>* function) {
   typename std::conditional<std::is_void<R>::value, bool, uint32_t>::type x{};
   getFunctionWavmReturn(vm, functionName, function, x);
 }
 
-template void getFunctionWavm<void>(WasmVm*, absl::string_view, std::function<void(Wasm::Context*)>*);
-template void getFunctionWavm<void, uint32_t>(WasmVm*, absl::string_view, std::function<void(Wasm::Context*, uint32_t)>*);
-template void getFunctionWavm<void, uint32_t, uint32_t>(WasmVm*, absl::string_view, std::function<void(Wasm::Context*, uint32_t, uint32_t)>*);
-template void getFunctionWavm<void, uint32_t, uint32_t, uint32_t>(WasmVm*, absl::string_view, std::function<void(Wasm::Context*, uint32_t, uint32_t, uint32_t)>*);
-template void getFunctionWavm<void, uint32_t, uint32_t, uint32_t, uint32_t>(WasmVm*, absl::string_view, std::function<void(Wasm::Context*, uint32_t, uint32_t, uint32_t, uint32_t)>*);
-template void getFunctionWavm<void, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(WasmVm*, absl::string_view, std::function<void(Wasm::Context*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>*);
+template void getFunctionWavm<void>(WasmVm*, absl::string_view,
+                                    std::function<void(Wasm::Context*)>*);
+template void getFunctionWavm<void, uint32_t>(WasmVm*, absl::string_view,
+                                              std::function<void(Wasm::Context*, uint32_t)>*);
+template void
+getFunctionWavm<void, uint32_t, uint32_t>(WasmVm*, absl::string_view,
+                                          std::function<void(Wasm::Context*, uint32_t, uint32_t)>*);
+template void getFunctionWavm<void, uint32_t, uint32_t, uint32_t>(
+    WasmVm*, absl::string_view, std::function<void(Wasm::Context*, uint32_t, uint32_t, uint32_t)>*);
+template void getFunctionWavm<void, uint32_t, uint32_t, uint32_t, uint32_t>(
+    WasmVm*, absl::string_view,
+    std::function<void(Wasm::Context*, uint32_t, uint32_t, uint32_t, uint32_t)>*);
+template void getFunctionWavm<void, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>(
+    WasmVm*, absl::string_view,
+    std::function<void(Wasm::Context*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>*);
 
 void Context::wasmLogHandler(void* raw_context, uint32_t level, uint32_t address, uint32_t size) {
   auto context = WASM_CONTEXT(raw_context, Context);
   context->scriptLog(static_cast<spdlog::level::level_enum>(level),
-      context->wasm_vm->getMemory(address, size));
+                     context->wasm_vm->getMemory(address, size));
 }
-  
+
 void Context::scriptLog(spdlog::level::level_enum level, absl::string_view message) {
   switch (level) {
   case spdlog::level::trace:

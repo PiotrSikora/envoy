@@ -386,8 +386,7 @@ void FilterJson::translateWasmFilter(const Json::Object& json_config,
   JSON_UTIL_SET_STRING(json_config, proto_config, file);
   JSON_UTIL_SET_STRING(json_config, proto_config, configuration);
   if (json_config.hasObject("allow_precompiled"))
-    proto_config.set_allow_precompiled(
-        json_config.getBoolean("allow_precompiled", false));
+    proto_config.set_allow_precompiled(json_config.getBoolean("allow_precompiled", false));
 }
 
 void FilterJson::translateTcpProxy(

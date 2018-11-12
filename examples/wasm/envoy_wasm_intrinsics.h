@@ -5,7 +5,7 @@
 #include <string>
 
 #ifndef EMSCRIPTEN_KEEPALIVE
-#define EMSCRIPTEN_KEEPALIVE __attribute__((used)) __attribute__((visibility ("default")))
+#define EMSCRIPTEN_KEEPALIVE __attribute__((used)) __attribute__((visibility("default")))
 #endif
 
 enum class LogLevel : int { trace, debug, info, warn, error, critical };
