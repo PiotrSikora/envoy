@@ -6,7 +6,7 @@ option go_package = "v2";
 
 import "validate/validate.proto";
 import "google/protobuf/struct.proto";
-import "envoy/config/wasm/v2/wasm.proto";
+import "envoy/config/common/wasm/v2/wasm.proto";
 
 // [#protodoc-title: Wasm access log]
 
@@ -20,5 +20,5 @@ message WasmAccessLog {
   // VM configure() call.
   string configuration = 2;
   // Configuration for starting a new VM to be associated with the given vm_id.
-  envoy.config.wasm.v2.VmConfig vm_config = 3;
+  envoy.config.common.wasm.v2.VmConfig vm_config = 3;
 }

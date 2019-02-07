@@ -13,12 +13,12 @@ api_proto_library_internal(
         "//envoy/api/v2/core:address",
         "//envoy/api/v2/core:base",
         "//envoy/api/v2/core:config_source",
+        "//envoy/config/common/wasm/v2:wasm",
         "//envoy/config/metrics/v2:metrics_service",
         "//envoy/config/metrics/v2:stats",
         "//envoy/config/overload/v2alpha:overload",
         "//envoy/config/ratelimit/v2:rls",
         "//envoy/config/trace/v2:trace",
-        "//envoy/config/wasm/v2:wasm",
     ],
 )
 
@@ -32,11 +32,11 @@ api_go_proto_library(
         "//envoy/api/v2/core:address_go_proto",
         "//envoy/api/v2/core:base_go_proto",
         "//envoy/api/v2/core:config_source_go_proto",
+        "//envoy/config/common/wasm/v2:wasm_go_proto",
         "//envoy/config/metrics/v2:metrics_service_go_proto",
         "//envoy/config/metrics/v2:stats_go_proto",
         "//envoy/config/overload/v2alpha:overload_go_proto",
         "//envoy/config/ratelimit/v2:rls_go_grpc",
         "//envoy/config/trace/v2:trace_go_proto",
-        "//envoy/config/wasm/v2:wasm_go_proto",
     ],
 )

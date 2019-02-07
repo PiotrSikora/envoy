@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "envoy/common/exception.h"
-#include "envoy/config/wasm/v2/wasm.pb.validate.h"
+#include "envoy/config/common/wasm/v2/wasm.pb.validate.h"
 #include "envoy/http/codes.h"
 #include "envoy/server/wasm.h"
 #include "envoy/thread_local/thread_local.h"
@@ -1191,7 +1191,7 @@ std::unique_ptr<WasmVm> createWasmVm(absl::string_view wasm_vm) {
 }
 
 std::unique_ptr<Wasm> createWasm(absl::string_view id,
-                                 const envoy::config::wasm::v2::VmConfig& vm_config,
+                                 const envoy::config::common::wasm::v2::VmConfig& vm_config,
                                  Api::Api& api) {
   auto wasm = std::make_unique<Wasm>(vm_config.vm(), id);
   const auto& code = Config::DataSource::read(vm_config.code(), true, api);
@@ -1207,10 +1207,10 @@ std::unique_ptr<Wasm> createWasm(absl::string_view id,
   return wasm;
 }
 
-std::shared_ptr<Wasm> createThreadLocalWasm(Wasm& base_wasm,
-                                            const envoy::config::wasm::v2::VmConfig& vm_config,
-                                            Event::Dispatcher& dispatcher,
-                                            absl::string_view configuration, Api::Api& api) {
+std::shared_ptr<Wasm>
+createThreadLocalWasm(Wasm& base_wasm, const envoy::config::common::wasm::v2::VmConfig& vm_config,
+                      Event::Dispatcher& dispatcher, absl::string_view configuration,
+                      Api::Api& api) {
   std::shared_ptr<Wasm> wasm;
   if (base_wasm.wasmVm()->clonable()) {
     wasm = std::make_shared<Wasm>(base_wasm);

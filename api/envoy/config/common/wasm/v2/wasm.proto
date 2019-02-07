@@ -1,13 +1,13 @@
 syntax = "proto3";
 
-// [#protodoc-title: Metrics service]
-
-package envoy.config.wasm.v2;
-option java_package = "io.envoyproxy.envoy.config.wasm.v2";
-
 import "envoy/api/v2/core/base.proto";
 
 import "validate/validate.proto";
+
+package envoy.config.common.wasm.v2;
+option java_package = "io.envoyproxy.envoy.config.common.wasm.v2";
+
+// [#protodoc-title: Common WASM configuration]
 
 message VmConfig {
   // The Wasm VM type (see source/extensions/commmon/wasm/well_known_names.h).

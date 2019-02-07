@@ -34,8 +34,8 @@ TEST(WasmTest, Logging) {
   Event::DispatcherImpl dispatcher(time_system, *api);
   auto wasm = std::make_unique<Extensions::Common::Wasm::Wasm>("envoy.wasm.vm.wavm", "");
   EXPECT_NE(wasm, nullptr);
-  const auto code = TestEnvironment::readFileToStringForTest(
-      TestEnvironment::substitute("{{ test_rundir }}/test/extensions/wasm/test_data/logging.wasm"));
+  const auto code = TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/logging.wasm"));
   EXPECT_FALSE(code.empty());
   auto context = std::make_unique<TestContext>(wasm.get());
 
@@ -60,7 +60,7 @@ TEST(WasmTest, BadkSignature) {
   auto wasm = std::make_unique<Extensions::Common::Wasm::Wasm>("envoy.wasm.vm.wavm", "");
   EXPECT_NE(wasm, nullptr);
   const auto code = TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
-      "{{ test_rundir }}/test/extensions/wasm/test_data/bad_signature.wasm"));
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/bad_signature.wasm"));
   EXPECT_FALSE(code.empty());
   auto context = std::make_unique<TestContext>(wasm.get());
   EXPECT_THROW_WITH_MESSAGE(wasm->initialize(code, "<test>", false),

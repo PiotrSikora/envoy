@@ -1,6 +1,6 @@
 all: logging.wasm bad_signature.wasm
 
-API=../../../../api/wasm/cpp
+API=../../../../../api/wasm/cpp
 
 logging.wasm logging.wat: logging.cc ${API}/envoy_wasm_intrinsics.h ${API}/envoy_wasm_intrinsics.js
 	em++ -s WASM=1 --std=c++14 -O3 -g3 -I${API} --js-library ${API}/envoy_wasm_intrinsics.js logging.cc -o logging.js

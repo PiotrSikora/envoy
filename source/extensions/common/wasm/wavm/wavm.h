@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "envoy/common/exception.h"
-#include "envoy/config/wasm/v2/wasm.pb.validate.h"
+#include "envoy/config/common/wasm/v2/wasm.pb.validate.h"
 #include "envoy/server/wasm.h"
 #include "envoy/thread_local/thread_local.h"
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "envoy/config/wasm/v2/wasm.pb.validate.h"
+#include "envoy/config/common/wasm/v2/wasm.pb.validate.h"
 #include "envoy/server/wasm_config.h"
 
 #include "extensions/common/wasm/wasm.h"
@@ -13,7 +13,7 @@ class WasmFactory : public Server::Configuration::WasmFactory {
 public:
   ~WasmFactory() override {}
   std::string name() override { return "envoy.wasm"; }
-  Server::WasmPtr createWasm(const envoy::config::wasm::v2::WasmConfig& config,
+  Server::WasmPtr createWasm(const envoy::config::common::wasm::v2::WasmConfig& config,
                              Server::Configuration::WasmFactoryContext& context) override;
 };
 

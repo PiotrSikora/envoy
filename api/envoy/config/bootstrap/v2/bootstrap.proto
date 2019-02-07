@@ -19,7 +19,7 @@ import "envoy/config/trace/v2/trace.proto";
 import "envoy/config/metrics/v2/stats.proto";
 import "envoy/config/overload/v2alpha/overload.proto";
 import "envoy/config/ratelimit/v2/rls.proto";
-import "envoy/config/wasm/v2/wasm.proto";
+import "envoy/config/common/wasm/v2/wasm.proto";
 
 import "google/protobuf/duration.proto";
 
@@ -122,7 +122,7 @@ message Bootstrap {
   envoy.config.overload.v2alpha.OverloadManager overload_manager = 15;
 
   // Configuration for an wasm service provider(s).
-  repeated envoy.config.wasm.v2.WasmConfig wasm_service = 16;
+  repeated envoy.config.common.wasm.v2.WasmConfig wasm_service = 16;
 }
 
 // Administration interface :ref:`operations documentation

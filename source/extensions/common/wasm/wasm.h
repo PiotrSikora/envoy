@@ -5,7 +5,7 @@
 #include "envoy/access_log/access_log.h"
 #include "envoy/buffer/buffer.h"
 #include "envoy/common/exception.h"
-#include "envoy/config/wasm/v2/wasm.pb.validate.h"
+#include "envoy/config/common/wasm/v2/wasm.pb.validate.h"
 #include "envoy/http/filter.h"
 #include "envoy/server/wasm.h"
 #include "envoy/thread_local/thread_local.h"
@@ -434,12 +434,13 @@ std::unique_ptr<WasmVm> createWasmVm(absl::string_view vm);
 // Create a new Wasm VM not attached to any thread. Note: 'id' may be empty if this VM will not be
 // shared by APIs (e.g. HTTP Filter + AccessLog).
 std::unique_ptr<Wasm> createWasm(absl::string_view id,
-                                 const envoy::config::wasm::v2::VmConfig& vm_config, Api::Api& api);
+                                 const envoy::config::common::wasm::v2::VmConfig& vm_config,
+                                 Api::Api& api);
 // Create a ThreadLocal VM from an existing VM (e.g. from createWasm() above).
-std::shared_ptr<Wasm> createThreadLocalWasm(Wasm& base_wasm,
-                                            const envoy::config::wasm::v2::VmConfig& vm_config,
-                                            Event::Dispatcher& dispatcher,
-                                            absl::string_view configuration, Api::Api& api);
+std::shared_ptr<Wasm>
+createThreadLocalWasm(Wasm& base_wasm, const envoy::config::common::wasm::v2::VmConfig& vm_config,
+                      Event::Dispatcher& dispatcher, absl::string_view configuration,
+                      Api::Api& api);
 // Get an existing ThreadLocal VM matching 'id'.
 std::shared_ptr<Wasm> getThreadLocalWasm(absl::string_view id, absl::string_view configuration);
 

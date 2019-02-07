@@ -1,4 +1,4 @@
-#include "extensions/wasm/config.h"
+#include "extensions/common/wasm/config.h"
 
 #include <stdio.h>
 
@@ -16,7 +16,7 @@ namespace Wasm {
 
 static const std::string INLINE_STRING = "<inline>";
 
-Server::WasmPtr WasmFactory::createWasm(const envoy::config::wasm::v2::WasmConfig& config,
+Server::WasmPtr WasmFactory::createWasm(const envoy::config::common::wasm::v2::WasmConfig& config,
                                         Server::Configuration::WasmFactoryContext& context) {
   if (config.singleton()) {
     auto wasm = Common::Wasm::createWasm(config.id(), config.vm_config(), context.api());

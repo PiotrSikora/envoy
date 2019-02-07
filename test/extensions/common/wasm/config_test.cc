@@ -1,13 +1,13 @@
 #include <stdio.h>
 
-#include "envoy/config/wasm/v2/wasm.pb.validate.h"
+#include "envoy/config/common/wasm/v2/wasm.pb.validate.h"
 #include "envoy/registry/registry.h"
 
 #include "common/stats/isolated_store_impl.h"
 
 #include "server/wasm_config_impl.h"
 
-#include "extensions/wasm/config.h"
+#include "extensions/common/wasm/config.h"
 
 #include "test/mocks/event/mocks.h"
 #include "test/mocks/thread_local/mocks.h"
@@ -23,10 +23,10 @@ TEST(WasmFactoryTest, CreateWasmFromWASM) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
-  config.mutable_vm_config()->mutable_code()->set_filename(
-      TestEnvironment::substitute("{{ test_rundir }}/test/extensions/wasm/test_data/logging.wasm"));
+  config.mutable_vm_config()->mutable_code()->set_filename(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/logging.wasm"));
   config.set_singleton(true);
   Event::MockDispatcher dispatcher;
   ThreadLocal::MockInstance tls;
@@ -41,10 +41,10 @@ TEST(WasmFactoryTest, CreateWasmFromPrecompiledWASM) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
-  config.mutable_vm_config()->mutable_code()->set_filename(
-      TestEnvironment::substitute("{{ test_rundir }}/test/extensions/wasm/test_data/logging.wasm"));
+  config.mutable_vm_config()->mutable_code()->set_filename(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/logging.wasm"));
   config.mutable_vm_config()->set_allow_precompiled(true);
   config.set_singleton(true);
   Event::MockDispatcher dispatcher;
@@ -60,10 +60,10 @@ TEST(WasmFactoryTest, CreateWasmFromWASMPerThread) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
-  config.mutable_vm_config()->mutable_code()->set_filename(
-      TestEnvironment::substitute("{{ test_rundir }}/test/extensions/wasm/test_data/logging.wasm"));
+  config.mutable_vm_config()->mutable_code()->set_filename(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/logging.wasm"));
   config.set_id("test_id");
   Event::MockDispatcher dispatcher;
   testing::NiceMock<ThreadLocal::MockInstance> tls;
@@ -78,10 +78,10 @@ TEST(WasmFactoryTest, CreateWasmFromWAT) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
-  config.mutable_vm_config()->mutable_code()->set_filename(
-      TestEnvironment::substitute("{{ test_rundir }}/test/extensions/wasm/test_data/logging.wat"));
+  config.mutable_vm_config()->mutable_code()->set_filename(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/logging.wat"));
   config.set_singleton(true);
   Event::MockDispatcher dispatcher;
   ThreadLocal::MockInstance tls;
@@ -96,7 +96,7 @@ TEST(WasmFactoryTest, CreateWasmFromInlineWAT) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
   config.mutable_vm_config()->mutable_code()->set_inline_string(
       "(module\n"
@@ -130,7 +130,7 @@ TEST(WasmFactoryTest, CreateWasmFromInlineWATWithAlias) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
   config.mutable_vm_config()->mutable_code()->set_inline_string(
       "(module\n"
@@ -164,7 +164,7 @@ TEST(WasmFactoryTest, CreateWasmFromInlineWATWithUnderscoreAlias) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
   config.mutable_vm_config()->mutable_code()->set_inline_string(
       "(module\n"
@@ -198,7 +198,7 @@ TEST(WasmFactoryTest, MissingImport) {
   auto factory =
       Registry::FactoryRegistry<Server::Configuration::WasmFactory>::getFactory("envoy.wasm");
   ASSERT_NE(factory, nullptr);
-  envoy::config::wasm::v2::WasmConfig config;
+  envoy::config::common::wasm::v2::WasmConfig config;
   config.mutable_vm_config()->set_vm("envoy.wasm.vm.wavm");
   config.mutable_vm_config()->mutable_code()->set_inline_string(
       "(module\n"

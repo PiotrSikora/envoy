@@ -46,7 +46,7 @@ envoy_cc_library(
         "//source/extensions/filters/common/ratelimit:ratelimit_registration_lib",
         "@envoy_api//envoy/api/v2:lds_cc",
         "@envoy_api//envoy/config/bootstrap/v2:bootstrap_cc",
-        "@envoy_api//envoy/config/wasm/v2:wasm_cc",
+        "@envoy_api//envoy/config/common/wasm/v2:wasm_cc",
     ],
 )
 
