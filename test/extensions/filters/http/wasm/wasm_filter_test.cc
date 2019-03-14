@@ -85,7 +85,7 @@ TEST_F(WasmHttpFilterTest, BadCode) {
 // Script touching headers only, request that is headers only.
 TEST_F(WasmHttpFilterTest, HeadersOnlyRequestHeadersOnly) {
   setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
-      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/headers.wasm")));
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/headers_cpp.wasm")));
   setupFilter();
   EXPECT_CALL(*filter_,
               scriptLog(spdlog::level::debug, Eq(absl::string_view("onRequestHeaders 1"))));
@@ -102,7 +102,7 @@ TEST_F(WasmHttpFilterTest, HeadersOnlyRequestHeadersOnly) {
 // Script touching headers only, request that is headers only.
 TEST_F(WasmHttpFilterTest, HeadersOnlyRequestHeadersAndBody) {
   setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
-      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/headers.wasm")));
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/headers_cpp.wasm")));
   setupFilter();
   EXPECT_CALL(*filter_,
               scriptLog(spdlog::level::debug, Eq(absl::string_view("onRequestHeaders 1"))));
@@ -121,7 +121,7 @@ TEST_F(WasmHttpFilterTest, HeadersOnlyRequestHeadersAndBody) {
 // Script testing AccessLog::Instance::log.
 TEST_F(WasmHttpFilterTest, AccessLog) {
   setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
-      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/headers.wasm")));
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/headers_cpp.wasm")));
   setupFilter();
   EXPECT_CALL(*filter_,
               scriptLog(spdlog::level::debug, Eq(absl::string_view("onRequestHeaders 1"))));
@@ -142,7 +142,7 @@ TEST_F(WasmHttpFilterTest, AccessLog) {
 
 TEST_F(WasmHttpFilterTest, AsyncCall) {
   setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
-      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/async_call.wasm")));
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/async_call_cpp.wasm")));
   setupFilter();
   wasm_->start();
 
