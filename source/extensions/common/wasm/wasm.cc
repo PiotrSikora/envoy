@@ -1025,12 +1025,12 @@ void Wasm::establishEnvironment() {
 }
 
 void Wasm::getFunctions() {
-#define _GET(_fn) getFunction(wasm_vm_.get(), "_" #_fn, &_fn##_);
+#define _GET(_fn) wasm_vm_.get()->getFunction("_" #_fn, &_fn##_);
   _GET(malloc);
   _GET(free);
 #undef _GET
 
-#define _GET_PROXY(_fn) getFunction(wasm_vm_.get(), "_proxy_" #_fn, &_fn##_);
+#define _GET_PROXY(_fn) wasm_vm_.get()->getFunction("_proxy_" #_fn, &_fn##_);
   _GET_PROXY(onStart);
   _GET_PROXY(onConfigure);
   _GET_PROXY(onTick);

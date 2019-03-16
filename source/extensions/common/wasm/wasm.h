@@ -33,16 +33,16 @@ using PairsWithStringValues = std::vector<std::pair<absl::string_view, std::stri
 
 using WasmCall0Void = std::function<void(Context*)>;
 using WasmCall1Void = std::function<void(Context*, uint32_t)>;
-using WasmCall1Int = std::function<uint32_t(Context*, uint32_t)>;
 using WasmCall2Void = std::function<void(Context*, uint32_t, uint32_t)>;
+using WasmCall8Void = std::function<void(Context*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                         uint32_t, uint32_t, uint32_t)>;
+using WasmCall1Int = std::function<uint32_t(Context*, uint32_t)>;
+using WasmCall3Int = std::function<uint32_t(Context*, uint32_t, uint32_t, uint32_t)>;
 
-using WasmContextCall0Void = std::function<void(Context*, uint32_t context_id)>;
-using WasmContextCall7Void = std::function<void(Context*, uint32_t context_id, uint32_t, uint32_t,
-                                                uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>;
-
-using WasmContextCall0Int = std::function<uint32_t(Context*, uint32_t context_id)>;
-using WasmContextCall2Int =
-    std::function<uint32_t(Context*, uint32_t context_id, uint32_t, uint32_t)>;
+using WasmContextCall0Void = WasmCall1Void; // context_id is passed as 1st arg.
+using WasmContextCall7Void = WasmCall8Void; // context_id is passed as 1st arg.
+using WasmContextCall0Int = WasmCall1Int;   // context_id is passed as 1st arg.
+using WasmContextCall2Int = WasmCall3Int;   // context_id is passed as 1st arg.
 
 // A context which will be the target of callbacks for a particular session
 // e.g. a handler of a stream.
@@ -435,6 +435,14 @@ public:
   // Get the contents of the user section with the given name or "" if it does not exist and
   // optionally a presence indicator.
   virtual absl::string_view getUserSection(absl::string_view name, bool* present = nullptr) PURE;
+
+  // Get typed function exported by the WASM module.
+  virtual void getFunction(absl::string_view functionName, WasmCall0Void* f) PURE;
+  virtual void getFunction(absl::string_view functionName, WasmCall1Void* f) PURE;
+  virtual void getFunction(absl::string_view functionName, WasmCall2Void* f) PURE;
+  virtual void getFunction(absl::string_view functionName, WasmCall8Void* f) PURE;
+  virtual void getFunction(absl::string_view functionName, WasmCall1Int* f) PURE;
+  virtual void getFunction(absl::string_view functionName, WasmCall3Int* f) PURE;
 };
 
 // Create a new low-level WASM VM of the give type (e.g. "envoy.wasm.vm.wavm").
@@ -470,10 +478,6 @@ inline Context::Context(Wasm* wasm) : wasm_(wasm), id_(wasm->allocContextId()) {
 template <typename R, typename... Args>
 void registerCallbackWavm(WasmVm* vm, absl::string_view moduleName, absl::string_view functionName,
                           R (*)(Args...));
-template <typename R, typename... Args>
-void getFunctionWavm(WasmVm* vm, absl::string_view functionName,
-                     std::function<R(Context*, Args...)>*);
-
 template <typename T>
 std::unique_ptr<Global<T>> makeGlobalWavm(WasmVm* vm, absl::string_view moduleName,
                                           absl::string_view name, T initialValue);
@@ -483,14 +487,6 @@ void registerCallback(WasmVm* vm, absl::string_view moduleName, absl::string_vie
                       R (*f)(Args...)) {
   if (vm->vm() == WasmVmNames::get().Wavm) {
     registerCallbackWavm(vm, moduleName, functionName, f);
-  } else {
-    throw WasmVmException("unsupported wasm vm");
-  }
-}
-
-template <typename F> void getFunction(WasmVm* vm, absl::string_view functionName, F* function) {
-  if (vm->vm() == WasmVmNames::get().Wavm) {
-    getFunctionWavm(vm, functionName, function);
   } else {
     throw WasmVmException("unsupported wasm vm");
   }

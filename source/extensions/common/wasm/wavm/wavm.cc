@@ -54,6 +54,11 @@ namespace Wasm {
 
 extern thread_local Envoy::Extensions::Common::Wasm::Context* current_context_;
 
+// Forward declaration.
+template <typename R, typename... Args>
+void getFunctionWavm(WasmVm* vm, absl::string_view functionName,
+                     std::function<R(Context*, Args...)>* function);
+
 namespace Wavm {
 
 struct Wavm;
@@ -220,6 +225,25 @@ struct Wavm : public WasmVm {
   absl::string_view getUserSection(absl::string_view name, bool* present) override;
 
   void getInstantiatedGlobals();
+
+  void getFunction(absl::string_view functionName, WasmCall0Void* f) override {
+    getFunctionWavm(this, functionName, f);
+  };
+  void getFunction(absl::string_view functionName, WasmCall1Void* f) override {
+    getFunctionWavm(this, functionName, f);
+  };
+  void getFunction(absl::string_view functionName, WasmCall2Void* f) override {
+    getFunctionWavm(this, functionName, f);
+  };
+  void getFunction(absl::string_view functionName, WasmCall8Void* f) override {
+    getFunctionWavm(this, functionName, f);
+  };
+  void getFunction(absl::string_view functionName, WasmCall1Int* f) override {
+    getFunctionWavm(this, functionName, f);
+  };
+  void getFunction(absl::string_view functionName, WasmCall3Int* f) override {
+    getFunctionWavm(this, functionName, f);
+  };
 
   bool hasInstantiatedModule_ = false;
   IR::Module irModule_;
