@@ -54,10 +54,13 @@ namespace Wasm {
 
 extern thread_local Envoy::Extensions::Common::Wasm::Context* current_context_;
 
-// Forward declaration.
+// Forward declarations.
 template <typename R, typename... Args>
 void getFunctionWavm(WasmVm* vm, absl::string_view functionName,
                      std::function<R(Context*, Args...)>* function);
+template <typename R, typename... Args>
+void registerCallbackWavm(WasmVm* vm, absl::string_view moduleName, absl::string_view functionName,
+                          R (*)(Args...));
 
 namespace Wavm {
 
@@ -243,6 +246,47 @@ struct Wavm : public WasmVm {
   };
   void getFunction(absl::string_view functionName, WasmCall3Int* f) override {
     getFunctionWavm(this, functionName, f);
+  };
+
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback0Void f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback1Void f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback2Void f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback3Void f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback4Void f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback5Void f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback0Int f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback3Int f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback5Int f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
+  };
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                        WasmCallback9Int f) override {
+    registerCallbackWavm(this, moduleName, functionName, f);
   };
 
   bool hasInstantiatedModule_ = false;

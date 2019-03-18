@@ -31,6 +31,7 @@ class WasmVm;
 using Pairs = std::vector<std::pair<absl::string_view, absl::string_view>>;
 using PairsWithStringValues = std::vector<std::pair<absl::string_view, std::string>>;
 
+// 1st arg is always a pointer to Context (Context*).
 using WasmCall0Void = std::function<void(Context*)>;
 using WasmCall1Void = std::function<void(Context*, uint32_t)>;
 using WasmCall2Void = std::function<void(Context*, uint32_t, uint32_t)>;
@@ -39,10 +40,24 @@ using WasmCall8Void = std::function<void(Context*, uint32_t, uint32_t, uint32_t,
 using WasmCall1Int = std::function<uint32_t(Context*, uint32_t)>;
 using WasmCall3Int = std::function<uint32_t(Context*, uint32_t, uint32_t, uint32_t)>;
 
-using WasmContextCall0Void = WasmCall1Void; // context_id is passed as 1st arg.
-using WasmContextCall7Void = WasmCall8Void; // context_id is passed as 1st arg.
-using WasmContextCall0Int = WasmCall1Int;   // context_id is passed as 1st arg.
-using WasmContextCall2Int = WasmCall3Int;   // context_id is passed as 1st arg.
+// 1st arg is always a context_id (uint32_t).
+using WasmContextCall0Void = WasmCall1Void;
+using WasmContextCall7Void = WasmCall8Void;
+using WasmContextCall0Int = WasmCall1Int;
+using WasmContextCall2Int = WasmCall3Int;
+
+// 1st arg is always a pointer to raw_context (void*).
+using WasmCallback0Void = void (*)(void*);
+using WasmCallback1Void = void (*)(void*, uint32_t);
+using WasmCallback2Void = void (*)(void*, uint32_t, uint32_t);
+using WasmCallback3Void = void (*)(void*, uint32_t, uint32_t, uint32_t);
+using WasmCallback4Void = void (*)(void*, uint32_t, uint32_t, uint32_t, uint32_t);
+using WasmCallback5Void = void (*)(void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+using WasmCallback0Int = uint32_t (*)(void*);
+using WasmCallback3Int = uint32_t (*)(void*, uint32_t, uint32_t, uint32_t);
+using WasmCallback5Int = uint32_t (*)(void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+using WasmCallback9Int = uint32_t (*)(void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                      uint32_t, uint32_t, uint32_t, uint32_t);
 
 // A context which will be the target of callbacks for a particular session
 // e.g. a handler of a stream.
@@ -443,6 +458,28 @@ public:
   virtual void getFunction(absl::string_view functionName, WasmCall8Void* f) PURE;
   virtual void getFunction(absl::string_view functionName, WasmCall1Int* f) PURE;
   virtual void getFunction(absl::string_view functionName, WasmCall3Int* f) PURE;
+
+  // Register typed callbacks exported by the host environment.
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback0Void f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback1Void f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback2Void f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback3Void f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback4Void f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback5Void f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback0Int f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback3Int f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback5Int f) PURE;
+  virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
+                                WasmCallback9Int f) PURE;
 };
 
 // Create a new low-level WASM VM of the give type (e.g. "envoy.wasm.vm.wavm").
@@ -475,22 +512,9 @@ public:
 inline Context::Context(Wasm* wasm) : wasm_(wasm), id_(wasm->allocContextId()) {}
 
 // Forward declarations for VM implemenations.
-template <typename R, typename... Args>
-void registerCallbackWavm(WasmVm* vm, absl::string_view moduleName, absl::string_view functionName,
-                          R (*)(Args...));
 template <typename T>
 std::unique_ptr<Global<T>> makeGlobalWavm(WasmVm* vm, absl::string_view moduleName,
                                           absl::string_view name, T initialValue);
-
-template <typename R, typename... Args>
-void registerCallback(WasmVm* vm, absl::string_view moduleName, absl::string_view functionName,
-                      R (*f)(Args...)) {
-  if (vm->vm() == WasmVmNames::get().Wavm) {
-    registerCallbackWavm(vm, moduleName, functionName, f);
-  } else {
-    throw WasmVmException("unsupported wasm vm");
-  }
-}
 
 template <typename T>
 std::unique_ptr<Global<T>> makeGlobal(WasmVm* vm, absl::string_view moduleName,
