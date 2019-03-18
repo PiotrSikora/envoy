@@ -1017,9 +1017,9 @@ void Wasm::registerCallbacks() {
 void Wasm::establishEnvironment() {
   if (is_emscripten_) {
     wasm_vm_->makeModule("global");
-    emscripten_NaN_ = makeGlobal(wasm_vm_.get(), "global", "NaN", std::nan("0"));
+    emscripten_NaN_ = wasm_vm_->makeGlobal("global", "NaN", std::nan("0"));
     emscripten_Infinity_ =
-        makeGlobal(wasm_vm_.get(), "global", "Infinity", std::numeric_limits<double>::infinity());
+        wasm_vm_->makeGlobal("global", "Infinity", std::numeric_limits<double>::infinity());
   }
 }
 

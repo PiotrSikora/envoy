@@ -480,6 +480,10 @@ public:
                                 WasmCallback5Int f) PURE;
   virtual void registerCallback(absl::string_view moduleName, absl::string_view functionName,
                                 WasmCallback9Int f) PURE;
+
+  // Register typed value exported by the host environment.
+  virtual std::unique_ptr<Global<double>>
+  makeGlobal(absl::string_view moduleName, absl::string_view name, double initialValue) PURE;
 };
 
 // Create a new low-level WASM VM of the give type (e.g. "envoy.wasm.vm.wavm").
@@ -510,21 +514,6 @@ public:
 };
 
 inline Context::Context(Wasm* wasm) : wasm_(wasm), id_(wasm->allocContextId()) {}
-
-// Forward declarations for VM implemenations.
-template <typename T>
-std::unique_ptr<Global<T>> makeGlobalWavm(WasmVm* vm, absl::string_view moduleName,
-                                          absl::string_view name, T initialValue);
-
-template <typename T>
-std::unique_ptr<Global<T>> makeGlobal(WasmVm* vm, absl::string_view moduleName,
-                                      absl::string_view name, T initialValue) {
-  if (vm->vm() == WasmVmNames::get().Wavm) {
-    return makeGlobalWavm(vm, moduleName, name, initialValue);
-  } else {
-    throw WasmVmException("unsupported wasm vm");
-  }
-}
 
 inline void* Wasm::allocMemory(uint32_t size, uint32_t* address) {
   uint32_t a = malloc_(generalContext(), size);
