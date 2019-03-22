@@ -232,65 +232,34 @@ struct Wavm : public WasmVm {
 
   void getInstantiatedGlobals();
 
-  void getFunction(absl::string_view functionName, WasmCall0Void* f) override {
-    getFunctionWavm(this, functionName, f);
+#define _GET_FUNCTION(_type)                                                                       \
+  void getFunction(absl::string_view functionName, _type* f) override {                            \
+    getFunctionWavm(this, functionName, f);                                                        \
   };
-  void getFunction(absl::string_view functionName, WasmCall1Void* f) override {
-    getFunctionWavm(this, functionName, f);
-  };
-  void getFunction(absl::string_view functionName, WasmCall2Void* f) override {
-    getFunctionWavm(this, functionName, f);
-  };
-  void getFunction(absl::string_view functionName, WasmCall8Void* f) override {
-    getFunctionWavm(this, functionName, f);
-  };
-  void getFunction(absl::string_view functionName, WasmCall1Int* f) override {
-    getFunctionWavm(this, functionName, f);
-  };
-  void getFunction(absl::string_view functionName, WasmCall3Int* f) override {
-    getFunctionWavm(this, functionName, f);
-  };
+  _GET_FUNCTION(WasmCall0Void);
+  _GET_FUNCTION(WasmCall1Void);
+  _GET_FUNCTION(WasmCall2Void);
+  _GET_FUNCTION(WasmCall8Void);
+  _GET_FUNCTION(WasmCall1Int);
+  _GET_FUNCTION(WasmCall3Int);
+#undef _GET_FUNCTION
 
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback0Void f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
+#define _REGISTER_CALLBACK(_type)                                                                  \
+  void registerCallback(absl::string_view moduleName, absl::string_view functionName,              \
+                        _type f) override {                                                        \
+    registerCallbackWavm(this, moduleName, functionName, f);                                       \
   };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback1Void f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback2Void f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback3Void f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback4Void f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback5Void f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback0Int f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback3Int f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback5Int f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
-  void registerCallback(absl::string_view moduleName, absl::string_view functionName,
-                        WasmCallback9Int f) override {
-    registerCallbackWavm(this, moduleName, functionName, f);
-  };
+  _REGISTER_CALLBACK(WasmCallback0Void);
+  _REGISTER_CALLBACK(WasmCallback1Void);
+  _REGISTER_CALLBACK(WasmCallback2Void);
+  _REGISTER_CALLBACK(WasmCallback3Void);
+  _REGISTER_CALLBACK(WasmCallback4Void);
+  _REGISTER_CALLBACK(WasmCallback5Void);
+  _REGISTER_CALLBACK(WasmCallback0Int);
+  _REGISTER_CALLBACK(WasmCallback3Int);
+  _REGISTER_CALLBACK(WasmCallback5Int);
+  _REGISTER_CALLBACK(WasmCallback9Int);
+#undef _REGISTER_CALLBACK
 
   std::unique_ptr<Global<double>> makeGlobal(absl::string_view moduleName, absl::string_view name,
                                              double initialValue) override {
