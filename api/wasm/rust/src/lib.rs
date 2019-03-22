@@ -53,7 +53,6 @@ fn _malloc(size: usize) -> *mut u8 {
 }
 
 /// Allow host to free memory.
-// TODO(PiotrSikora): make sure ptr is within acceptable range.
 #[no_mangle]
 fn _free(ptr: *mut u8) {
     if !ptr.is_null() {
