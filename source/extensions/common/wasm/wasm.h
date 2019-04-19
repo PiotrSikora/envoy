@@ -471,6 +471,8 @@ private:
   uint32_t emscripten_memory_size_ = 0;
   uint32_t emscripten_table_size_ = 0;
 
+  std::unique_ptr<Global<uint32_t>> emscripten_table_base_;
+  std::unique_ptr<Global<uint32_t>> emscripten_dynamictop_;
   std::unique_ptr<Global<double>> emscripten_NaN_;
   std::unique_ptr<Global<double>> emscripten_Infinity_;
 
@@ -561,6 +563,8 @@ public:
                                 WasmCallback_mjj f) PURE;
 
   // Register typed value exported by the host environment.
+  virtual std::unique_ptr<Global<uint32_t>>
+  makeGlobal(absl::string_view moduleName, absl::string_view name, uint32_t initialValue) PURE;
   virtual std::unique_ptr<Global<double>>
   makeGlobal(absl::string_view moduleName, absl::string_view name, double initialValue) PURE;
 };
