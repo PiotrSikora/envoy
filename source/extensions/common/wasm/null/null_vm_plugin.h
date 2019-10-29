@@ -16,6 +16,11 @@ public:
 
   // NB: These are defined rather than declared PURE because gmock uses __LINE__ internally for
   // uniqueness, making it impossible to use FOR_ALL_WASM_VM_EXPORTS with MOCK_METHOD2.
+#define _DEFINE_GET_GLOBAL(_T)                                                                     \
+  virtual std::unique_ptr<Global<_T>> getGlobal(absl::string_view) { return nullptr; }
+  FOR_ALL_WASM_VM_GLOBALS(_DEFINE_GET_GLOBAL)
+#undef _DEFINE_GET_GLOBAL
+
 #define _DEFINE_GET_FUNCTION(_T)                                                                   \
   virtual void getFunction(absl::string_view, _T* f) { *f = nullptr; }
   FOR_ALL_WASM_VM_EXPORTS(_DEFINE_GET_FUNCTION)

@@ -79,6 +79,13 @@ public:
   FOR_ALL_WASM_VM_EXPORTS(_GET_MODULE_FUNCTION)
 #undef _GET_MODULE_FUNCTION
 
+#define _GET_MODULE_GLOBAL(T)                                                                      \
+  std::unique_ptr<Global<T>> getGlobal(absl::string_view global_name) override {                   \
+    return getModuleGlobalImpl<T>(global_name);                                                    \
+  };
+  FOR_ALL_WASM_VM_GLOBALS(_GET_MODULE_GLOBAL)
+#undef _GET_MODULE_GLOBAL
+
 private:
   template <typename T>
   std::unique_ptr<Global<T>> registerHostGlobalImpl(absl::string_view module_name,
@@ -100,6 +107,9 @@ private:
   void getModuleFunctionImpl(absl::string_view function_name,
                              std::function<R(Context*, Args...)>* function);
 
+  template <typename T>
+  std::unique_ptr<Global<T>> getModuleGlobalImpl(absl::string_view global_name);
+
   wasm::vec<byte_t> source_ = wasm::vec<byte_t>::invalid();
   wasm::own<wasm::Store> store_;
   wasm::own<wasm::Module> module_;
@@ -110,6 +120,7 @@ private:
   absl::flat_hash_map<std::string, wasm::own<wasm::Global>> host_globals_;
   absl::flat_hash_map<std::string, FuncDataPtr> host_functions_;
   absl::flat_hash_map<std::string, wasm::own<wasm::Func>> module_functions_;
+  absl::flat_hash_map<std::string, wasm::own<wasm::Global>> module_globals_;
 };
 
 // Helper functions.
@@ -407,9 +418,11 @@ void V8::link(absl::string_view debug_name) {
     } break;
 
     case wasm::EXTERN_GLOBAL: {
-      // TODO(PiotrSikora): add support when/if needed.
-      ENVOY_LOG(trace, "link(), import module global: {} ({}) --- IGNORED", name,
+      ENVOY_LOG(trace, "link(), import module global: {} ({})", name,
                 printValKind(export_type->global()->content()->kind()));
+
+      ASSERT(export_item->global() != nullptr);
+      module_globals_.insert_or_assign(name, export_item->global()->copy());
     } break;
 
     case wasm::EXTERN_MEMORY: {
@@ -610,6 +623,20 @@ void V8::getModuleFunctionImpl(absl::string_view function_name,
     ENVOY_LOG(trace, "[host<-vm] {} return: {}", function_name, rvalue);
     return rvalue;
   };
+}
+
+template <typename T>
+std::unique_ptr<Global<T>> V8::getModuleGlobalImpl(absl::string_view global_name) {
+  ENVOY_LOG(trace, "getModuleGlobal(\"{}\")", global_name);
+  auto it = module_globals_.find(global_name);
+  if (it == module_globals_.end()) {
+    return nullptr;
+  }
+  wasm::Global* global = it->second.get();
+  if (global->type()->content()->kind() != convertArgToValKind<T>()) {
+    throw WasmVmException(fmt::format("Bad type for: {}", global_name));
+  }
+  return std::make_unique<V8ProxyForGlobal<T>>(global);
 }
 
 WasmVmPtr createVm() { return std::make_unique<V8>(); }

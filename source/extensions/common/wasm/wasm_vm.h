@@ -129,6 +129,8 @@ using WasmCallback_dd = double (*)(void*, double);
                   _f(WasmCallbackWord<8>) _f(WasmCallbackWord<9>) _f(WasmCallback_WWl)             \
                       _f(WasmCallback_WWm) _f(WasmCallback_dd)
 
+#define FOR_ALL_WASM_VM_GLOBALS(_f) _f(Word)
+
 // Wasm VM instance. Provides the low level WASM interface.
 class WasmVm : public Logger::Loggable<Logger::Id::wasm> {
 public:
@@ -278,6 +280,11 @@ public:
    */
   virtual std::unique_ptr<Global<double>>
   makeGlobal(absl::string_view module_name, absl::string_view name, double initial_value) PURE;
+
+#define _GET_GLOBAL(_T)                                                                            \
+  virtual std::unique_ptr<Global<_T>> getGlobal(absl::string_view global_name) PURE;
+  FOR_ALL_WASM_VM_GLOBALS(_GET_GLOBAL)
+#undef _GET_GLOBAL
 };
 using WasmVmPtr = std::unique_ptr<WasmVm>;
 

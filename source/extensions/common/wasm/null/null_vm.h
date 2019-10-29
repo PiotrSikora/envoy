@@ -38,6 +38,13 @@ struct NullVm : public WasmVm {
   bool getWord(uint64_t pointer, Word* data) override;
   absl::string_view getCustomSection(absl::string_view name) override;
 
+#define _FORWARD_GET_GLOBAL(_T)                                                                    \
+  std::unique_ptr<Global<_T>> getGlobal(absl::string_view global_name) override {                  \
+    return plugin_->getGlobal(global_name);                                                        \
+  }
+  FOR_ALL_WASM_VM_GLOBALS(_FORWARD_GET_GLOBAL)
+#undef _FORWARD_GET_GLOBAL
+
 #define _FORWARD_GET_FUNCTION(_T)                                                                  \
   void getFunction(absl::string_view function_name, _T* f) override {                              \
     plugin_->getFunction(function_name, f);                                                        \

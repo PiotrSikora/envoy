@@ -230,6 +230,22 @@ TEST_F(WasmVmTest, V8FunctionCalls) {
                             "Function: abort failed: Uncaught RuntimeError: unreachable");
 }
 
+TEST_F(WasmVmTest, V8GlobalVariables) {
+  auto wasm_vm = createWasmVm("envoy.wasm.runtime.v8");
+  ASSERT_TRUE(wasm_vm != nullptr);
+
+  auto code = TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/common/wasm/test_data/test_rust.wasm"));
+  EXPECT_TRUE(wasm_vm->load(code, false));
+
+  wasm_vm->registerCallback("env", "pong", &pong, CONVERT_FUNCTION_WORD_TO_UINT32(pong));
+  wasm_vm->link("test");
+
+  std::unique_ptr<Global<Word>> module_abi_version = wasm_vm->getGlobal("ABI_VERSION");
+  EXPECT_TRUE(module_abi_version != nullptr);
+  EXPECT_EQ(module_abi_version->get().u64_, 0x000001 /* 0.0.1 */);
+}
+
 TEST_F(WasmVmTest, V8Memory) {
   auto wasm_vm = createWasmVm("envoy.wasm.runtime.v8");
   ASSERT_TRUE(wasm_vm != nullptr);

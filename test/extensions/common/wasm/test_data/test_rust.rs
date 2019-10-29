@@ -1,6 +1,9 @@
 // Build using:
 // $ rustc -C lto -C opt-level=3 -C panic=abort -C link-arg=-S -C link-arg=-zstack-size=32768 --crate-type cdylib --target wasm32-unknown-unknown test_rust.rs
 
+#[no_mangle]
+pub static ABI_VERSION: u32 = 0x000001; /* 0.0.1 */
+
 // Import "pong" function from the host environment.
 extern "C" {
     fn pong(value: u32);
