@@ -8,6 +8,7 @@ Version history
 * http: added HTTP/1.1 flood protection. Can be temporarily disabled using the runtime feature `envoy.reloadable_features.http1_flood_protection`.
 * listeners: fixed issue where :ref:`TLS inspector listener filter <config_listener_filters_tls_inspector>` could have been bypassed by a client using only TLS 1.3.
 * sds: fix the SDS vulnerability that TLS validation context (e.g., subject alt name or hash) cannot be effectively validated in some cases.
+* http: added HTTP/1.1 flood protection. Can be temporarily disabled using the runtime feature `envoy.reloadable_features.http1_flood_protection`.
 
 1.13.0 (January 20, 2020)
 =========================
