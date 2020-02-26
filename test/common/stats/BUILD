@@ -111,6 +111,7 @@ envoy_cc_test(
 
 envoy_cc_test(
     name = "symbol_table_impl_test",
+    size = "large",
     srcs = ["symbol_table_impl_test.cc"],
     external_deps = ["abseil_hash_testing"],
     deps = [
@@ -179,6 +180,7 @@ envoy_cc_test(
 
 envoy_cc_test(
     name = "thread_local_store_test",
+    size = "large",
     srcs = ["thread_local_store_test.cc"],
     deps = [
         ":stat_test_utility_lib",
