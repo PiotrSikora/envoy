@@ -659,19 +659,25 @@ const Http::HeaderMap* Context::getConstMap(HeaderMapType type) {
     }
     return response_trailers_;
   case HeaderMapType::GrpcCreateInitialMetadata:
-    return grpc_create_initial_metadata_;
+    return rootContext()->grpc_create_initial_metadata_;
   case HeaderMapType::GrpcReceiveInitialMetadata:
-    return grpc_receive_initial_metadata_.get();
+    return rootContext()->grpc_receive_initial_metadata_.get();
   case HeaderMapType::GrpcReceiveTrailingMetadata:
-    return grpc_receive_trailing_metadata_.get();
-  case HeaderMapType::HttpCallResponseHeaders:
-    if (http_call_response_)
-      return &(*http_call_response_)->headers();
+    return rootContext()->grpc_receive_trailing_metadata_.get();
+  case HeaderMapType::HttpCallResponseHeaders: {
+    Envoy::Http::MessagePtr* response = rootContext()->http_call_response_;
+    if (response) {
+      return &(*response)->headers();
+    }
     return nullptr;
-  case HeaderMapType::HttpCallResponseTrailers:
-    if (http_call_response_)
-      return (*http_call_response_)->trailers();
+  }
+  case HeaderMapType::HttpCallResponseTrailers: {
+    Envoy::Http::MessagePtr* response = rootContext()->http_call_response_;
+    if (response) {
+      return (*response)->trailers();
+    }
     return nullptr;
+  }
   }
   return nullptr;
 }
@@ -780,13 +786,14 @@ Buffer::Instance* Context::getBuffer(BufferType type) {
     return network_downstream_data_buffer_;
   case BufferType::NetworkUpstreamData:
     return network_upstream_data_buffer_;
-  case BufferType::HttpCallResponseBody:
-    if (http_call_response_) {
-      return (*http_call_response_)->body().get();
+  case BufferType::HttpCallResponseBody: {
+    Envoy::Http::MessagePtr* response = rootContext()->http_call_response_;
+    if (response) {
+      return (*response)->body().get();
     }
-    break;
+  } break;
   case BufferType::GrpcReceiveBuffer:
-    return grpc_receive_buffer_.get();
+    return rootContext()->grpc_receive_buffer_.get();
   default:
     break;
   }
