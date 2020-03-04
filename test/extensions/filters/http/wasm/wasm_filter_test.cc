@@ -217,14 +217,55 @@ TEST_P(WasmHttpFilterTest, BodyRequestReadBody) {
   filter_->onDestroy();
 }
 
+// Script that prepends and appends to the body.
+TEST_P(WasmHttpFilterTest, BodyRequestPrependAndAppendToBody) {
+  setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
+  setupFilter();
+  EXPECT_CALL(*filter_, scriptLog_(spdlog::level::err,
+                                   Eq(absl::string_view("onRequestBody prepend.hello.append"))));
+  Http::TestHeaderMapImpl request_headers{{":path", "/"},
+                                          {"x-test-operation", "PrependAndAppendToBody"}};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, true));
+  Buffer::OwnedImpl data("hello");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+  filter_->onDestroy();
+}
+
+// Script that replaces the body.
+TEST_P(WasmHttpFilterTest, BodyRequestReplaceBody) {
+  setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
+  setupFilter();
+  EXPECT_CALL(*filter_,
+              scriptLog_(spdlog::level::err, Eq(absl::string_view("onRequestBody replace"))));
+  Http::TestHeaderMapImpl request_headers{{":path", "/"}, {"x-test-operation", "ReplaceBody"}};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, true));
+  Buffer::OwnedImpl data("hello");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+  filter_->onDestroy();
+}
+
+// Script that removes the body.
+TEST_P(WasmHttpFilterTest, BodyRequestRemoveBody) {
+  setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
+  setupFilter();
+  EXPECT_CALL(*filter_, scriptLog_(spdlog::level::err, Eq(absl::string_view("onRequestBody "))));
+  Http::TestHeaderMapImpl request_headers{{":path", "/"}, {"x-test-operation", "RemoveBody"}};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, true));
+  Buffer::OwnedImpl data("hello");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+  filter_->onDestroy();
+}
+
 // Script that buffers the body.
 TEST_P(WasmHttpFilterTest, BodyRequestBufferBody) {
   setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
       "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
   setupFilter();
 
-  Http::TestHeaderMapImpl request_headers{{":path", "/"},
-                                                 {"x-test-operation", "BufferBody"}};
+  Http::TestHeaderMapImpl request_headers{{":path", "/"}, {"x-test-operation", "BufferBody"}};
   EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, false));
 
   Buffer::OwnedImpl bufferedBody;
@@ -252,8 +293,7 @@ TEST_P(WasmHttpFilterTest, BodyRequestBufferBody) {
   EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data3, true));
 
   // Verify that the response still works even though we buffered the request.
-  Http::TestHeaderMapImpl response_headers{{":status", "200"},
-                                                   {"x-test-operation", "ReadBody"}};
+  Http::TestHeaderMapImpl response_headers{{":status", "200"}, {"x-test-operation", "ReadBody"}};
   EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->encodeHeaders(response_headers, false));
   // Should not buffer this time
   EXPECT_CALL(*filter_,
@@ -262,6 +302,50 @@ TEST_P(WasmHttpFilterTest, BodyRequestBufferBody) {
   EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->encodeData(data1, false));
   EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->encodeData(data1, true));
 
+  filter_->onDestroy();
+}
+
+// Script that prepends and appends to the buffered body.
+TEST_P(WasmHttpFilterTest, BodyRequestPrependAndAppendToBufferedBody) {
+  setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
+  setupFilter();
+  EXPECT_CALL(*filter_, scriptLog_(spdlog::level::err,
+                                   Eq(absl::string_view("onRequestBody prepend.hello.append"))));
+  Http::TestHeaderMapImpl request_headers{{":path", "/"},
+                                          {"x-test-operation", "PrependAndAppendToBufferedBody"}};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, true));
+  Buffer::OwnedImpl data("hello");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+  filter_->onDestroy();
+}
+
+// Script that replaces the buffered body.
+TEST_P(WasmHttpFilterTest, BodyRequestReplaceBufferedBody) {
+  setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
+  setupFilter();
+  EXPECT_CALL(*filter_,
+              scriptLog_(spdlog::level::err, Eq(absl::string_view("onRequestBody replace"))));
+  Http::TestHeaderMapImpl request_headers{{":path", "/"},
+                                          {"x-test-operation", "ReplaceBufferedBody"}};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, true));
+  Buffer::OwnedImpl data("hello");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
+  filter_->onDestroy();
+}
+
+// Script that removes the buffered body.
+TEST_P(WasmHttpFilterTest, BodyRequestRemoveBufferedBody) {
+  setupConfig(TestEnvironment::readFileToStringForTest(TestEnvironment::substitute(
+      "{{ test_rundir }}/test/extensions/filters/http/wasm/test_data/body_cpp.wasm")));
+  setupFilter();
+  EXPECT_CALL(*filter_, scriptLog_(spdlog::level::err, Eq(absl::string_view("onRequestBody "))));
+  Http::TestHeaderMapImpl request_headers{{":path", "/"},
+                                          {"x-test-operation", "RemoveBufferedBody"}};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter_->decodeHeaders(request_headers, true));
+  Buffer::OwnedImpl data("hello");
+  EXPECT_EQ(Http::FilterDataStatus::Continue, filter_->decodeData(data, true));
   filter_->onDestroy();
 }
 
