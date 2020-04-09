@@ -102,7 +102,6 @@ protected:
     Event::TimerPtr connect_timer_;
     Stats::TimespanPtr conn_length_;
     uint64_t remaining_requests_;
-    int delayed_{0};
   };
 
   typedef std::unique_ptr<ActiveClient> ActiveClientPtr;
@@ -119,7 +118,6 @@ protected:
 
   Stats::TimespanPtr conn_connect_ms_;
   Event::Dispatcher& dispatcher_;
-  std::list<ActiveClientPtr> delayed_clients_;
   std::list<ActiveClientPtr> ready_clients_;
   std::list<ActiveClientPtr> busy_clients_;
   std::list<DrainedCb> drained_callbacks_;
