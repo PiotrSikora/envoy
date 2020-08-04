@@ -495,9 +495,9 @@ DEPENDENCY_REPOSITORIES = dict(
         cpe = "N/A",
     ),
     proxy_wasm_cpp_host = dict(
-        sha256 = "c6b2a02088245a79d20459e8a7199cdebd9f092a6b50591038e4a3142f5c7a04",
-        strip_prefix = "proxy-wasm-cpp-host-3819554ddc9c5f315ecd474ceae30b5791f69e92",
-        urls = ["https://github.com/PiotrSikora/proxy-wasm-cpp-host/archive/3819554ddc9c5f315ecd474ceae30b5791f69e92.tar.gz"],
+        sha256 = "41c48f430bce1370abc1d0d56b82abeffc59af43309951cbf064a001e689fe19",
+        strip_prefix = "proxy-wasm-cpp-host-56593833008e677a99b51a78cd480391f298e226",
+        urls = ["https://github.com/proxy-wasm/proxy-wasm-cpp-host/archive/56593833008e677a99b51a78cd480391f298e226.tar.gz"],
         use_category = ["dataplane"],
         cpe = "N/A",
     ),
