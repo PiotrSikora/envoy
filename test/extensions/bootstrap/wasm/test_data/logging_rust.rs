@@ -1,6 +1,7 @@
 use log::{debug, error, info, trace, warn};
 use proxy_wasm::traits::{Context, RootContext};
 use proxy_wasm::types::LogLevel;
+use std::time::Duration;
 
 #[no_mangle]
 pub fn _start() {
@@ -12,6 +13,7 @@ struct TestRoot;
 
 impl RootContext for TestRoot {
     fn on_vm_start(&mut self, _: usize) -> bool {
+        self.set_tick_period(Duration::from_secs(5));
         true
     }
 
