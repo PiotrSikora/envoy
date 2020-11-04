@@ -634,14 +634,14 @@ REPOSITORY_LOCATIONS_SPEC = dict(
         ],
         cpe = "cpe:2.3:a:webassembly_virtual_machine_project:webassembly_virtual_machine:*",
     ),
-    com_github_wasm_c_api = dict(
-        project_name = "wasm-c-api",
-        project_desc = "WebAssembly C and C++ API",
-        project_url = "https://github.com/WebAssembly/wasm-c-api",
-        version = "d9a80099d496b5cdba6f3fe8fc77586e0e505ddc",
-        sha256 = "aea8cd095e9937f1e14f2c93e026317b197eb2345e7a817fe3932062eb7b792c",
-        strip_prefix = "wasm-c-api-{version}",
-        urls = ["https://github.com/WebAssembly/wasm-c-api/archive/{version}.tar.gz"],
+    com_github_wasmtime_c_api = dict(
+        project_name = "wasmtime-c-api",
+        project_desc = "wasmtime's c-api header files",
+        project_url = "https://github.com/bytecodealliance/wasmtime",
+        version = "v0.20.0",
+        sha256 = "fdbd6dbb58d15b3566abcc2c62ab18c348027e1620bc2ba0219017999504000e",
+        strip_prefix = "wasmtime-{version}-x86_64-linux-c-api",
+        urls = ["https://github.com/bytecodealliance/wasmtime/releases/download/{version}/wasmtime-{version}-x86_64-linux-c-api.tar.xz"],
         release_date = "2020-11-04",
         use_category = ["dataplane_ext"],
         extensions = [
