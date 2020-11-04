@@ -40,7 +40,10 @@ cc_library(
                 "src/**/*.h",
                 "src/**/*.cc",
             ],
-            exclude = ["src/v8/*"],
+            exclude = [
+                "src/v8/*",
+                "src/wavm/*",
+            ],
         ),
         glob(
             [
@@ -69,7 +72,8 @@ cc_library(
         "@proxy_wasm_cpp_sdk//:api_lib",
         "@proxy_wasm_cpp_sdk//:common_lib",
     ] + envoy_select_wasm_wavm([
-        "@envoy//bazel/foreign_cc:wavm",
+        "@com_github_wasmtime//:c_api",
+        #        "@envoy//bazel/foreign_cc:wavm",
     ]) + envoy_select_wasm_v8([
         "//external:wee8",
     ]),
